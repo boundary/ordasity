@@ -226,6 +226,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
           claimWorkPeggedToMe(workUnit)
       }
 
+      unclaimed.removeAll(myWorkUnits)
+
       while (myLoad() <= evenDistribution && !unclaimed.isEmpty) {
         val workUnit = unclaimed.poll()
         val created = ZKUtils.createEphemeral(zk,
