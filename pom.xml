@@ -116,6 +116,15 @@
                         <goals>
                             <goal>shade</goal>
                         </goals>
+                        <configuration>
+                          <artifactSet>
+                            <excludes>
+                              <exclude>org.scala-tools.testing:specs_2.8.0</exclude>
+                              <exclude>net.lag:configgy</exclude>
+                              <exclude>com.twitter:json_2.8.0</exclude>
+                            </excludes>
+                          </artifactSet>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

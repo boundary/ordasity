@@ -1,4 +1,4 @@
-package cluster
+package com.boundary.cluster
 
 import com.yammer.metrics.Meter
 

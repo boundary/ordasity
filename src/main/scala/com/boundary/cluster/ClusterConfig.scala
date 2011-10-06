@@ -1,4 +1,6 @@
-package cluster
+package com.boundary.cluster
+
+import java.net.InetAddress
 
 class ClusterConfig(val hosts: String) {
 
@@ -8,7 +10,9 @@ class ClusterConfig(val hosts: String) {
   var drainTime = 60
   var useSmartBalancing = false
   var zkTimeout = 3000
-  var multiTenant = false
+  var workUnitName = "work-units"
+  var workUnitShortName = "work"
+  var nodeId = InetAddress.getLocalHost.getHostName
 
   def setAutoRebalance(to: Boolean) : ClusterConfig = {
     enableAutoRebalance = to
@@ -30,13 +34,24 @@ class ClusterConfig(val hosts: String) {
     this
   }
 
-   def setDrainTime(to: Int) : ClusterConfig = {
+  def setDrainTime(to: Int) : ClusterConfig = {
     drainTime = to
     this
   }
 
-  def setMultitenant(to: Boolean) : ClusterConfig = {
-    multiTenant = to
+  def setWorkUnitName(to: String) : ClusterConfig = {
+    workUnitName = to
     this
   }
+
+  def setWorkUnitShortName(to: String) : ClusterConfig = {
+    workUnitShortName = to
+    this
+  }
+
+  def setNodeId(to: String) : ClusterConfig = {
+    nodeId = to
+    this
+  }
+
 }

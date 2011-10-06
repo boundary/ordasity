@@ -1,0 +1,22 @@
+package com.boundary.cluster
+
+import com.yammer.metrics.Meter
+
+class MyService {
+  val config = new ClusterConfig("localhost:2181").
+    setAutoRebalance(true).
+    setRebalanceInterval(60).
+    useSmartBalancing(true).
+    setDrainTime(60).
+    setZKTimeout(3)
+
+  val cluster = new Cluster("ServiceName", listener, config)
+
+  val listener = new SmartListener {
+    def startWork(workUnit: String, meter: Meter) = null // Do yer thang, mark dat meter.
+
+    def shutdownWork(workUnit: String) = null // Stop doin' that thang
+  }
+
+  cluster.join()
+}

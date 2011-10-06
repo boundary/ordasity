@@ -1,8 +1,4 @@
-package cluster
-
-import java.net.InetAddress
-import java.nio.charset.Charset
-import management.ManagementFactory
+package com.boundary.cluster
 
 import com.codahale.jerkson.Json._
 import com.codahale.logula.Logging
@@ -15,6 +11,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashSet
 import java.util.concurrent.atomic.{AtomicReference, AtomicBoolean}
 import java.util.concurrent.{TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
 import java.util.{ArrayList, LinkedList, TimerTask}
+import java.nio.charset.Charset
 
 object NodeState extends Enumeration {
   type NodeState = Value
@@ -22,10 +19,7 @@ object NodeState extends Enumeration {
 }
 
 class Cluster(name: String, listener: Listener, config: ClusterConfig) extends Logging with Instrumented {
-  val myNodeID = {
-    if (config.multiTenant) ManagementFactory.getRuntimeMXBean.getName
-    else InetAddress.getLocalHost.getHostName
-  }
+  val myNodeID = config.nodeId
 
   // Cluster, node, and work unit state
   private val nodes = new ArrayList[String]()
@@ -42,8 +36,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
   private var autoRebalanceFuture : Option[ScheduledFuture[_]] = None
 
   // Metrics
-  val claimedWorkListGauge = metrics.gauge[List[String]]("my_work_units") { myWorkUnits.toList }
-  val claimedWorkListCountGauge = metrics.gauge[Int]("my_work_unit_count") { myWorkUnits.size }
+  val listGauge = metrics.gauge[List[String]]("my_" + config.workUnitShortName) { myWorkUnits.toList }
+  val countGauge = metrics.gauge[Int]("my_" + config.workUnitShortName + "_count") { myWorkUnits.size }
 
   private val zkNodeCreated = new AtomicBoolean(false)
   private val state = new AtomicReference[NodeState.Value](NodeState.Fresh)
@@ -53,7 +47,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
   /**
    * Joins the cluster, claims work, and begins operation.
    */
-  def join() {
+  def join() : Cluster = {
     state.get() match {
       case NodeState.Fresh    => zk = new ZooKeeperClient(config.hosts, config.zkTimeout, "/", onConnect(_))
       case NodeState.Shutdown => zk = new ZooKeeperClient(config.hosts, config.zkTimeout, "/", onConnect(_))
@@ -98,10 +92,10 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
 
     log.info("Connected to Zookeeper (ID: %s).", myNodeID)
     zk.createPath(name + "/nodes")
-    zk.createPath("work-units")
+    zk.createPath(config.workUnitName)
     zk.createPath(name + "/meta/rebalance")
     zk.createPath(name + "/meta/workload")
-    zk.createPath(name + "/claimed-work")
+    zk.createPath(name + "/claimed-" + config.workUnitShortName)
     joinCluster()
     registerWatchers()
 
@@ -125,7 +119,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
       def run() = rebalance()
     }
 
-    autoRebalanceFuture = Some(pool.scheduleAtFixedRate(runRebalance, 0, config.autoRebalanceInterval, TimeUnit.SECONDS))
+    autoRebalanceFuture = Some(pool.scheduleAtFixedRate(runRebalance, 0,
+      config.autoRebalanceInterval, TimeUnit.SECONDS))
   }
 
   /**
@@ -185,14 +180,16 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
       log.info("Nodes: %s".format(nodes.mkString(", ")))
     })
 
-    zk.watchChildrenWithData[String]("work-units", allWorkUnits, bytesToString(_), { data: String =>
-      log.debug("Work Unit IDs: %s".format(allWorkUnits.keys.mkString(", ")))
+    zk.watchChildrenWithData[String](config.workUnitName,
+        allWorkUnits, bytesToString(_), { data: String =>
+      log.debug(config.workUnitName.capitalize + " IDs: %s".format(allWorkUnits.keys.mkString(", ")))
       claimWork()
       verifyIntegrity()
     })
 
-    zk.watchChildrenWithData[String](name + "/claimed-work", workUnitMap, bytesToString(_), { data: String =>
-      log.debug("Work Unit / Node Mapping changed: %s", workUnitMap)
+    zk.watchChildrenWithData[String](name + "/claimed-" + config.workUnitShortName,
+        workUnitMap, bytesToString(_), { data: String =>
+      log.debug(config.workUnitName.capitalize + " / Node Mapping changed: %s", workUnitMap)
       val unclaimedWork = allWorkUnits.keys.toSet -- workUnitMap.keys
       if (!unclaimedWork.isEmpty) claimWork()
       verifyIntegrity()
@@ -231,7 +228,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
 
       while (myLoad() <= evenDistribution && !unclaimed.isEmpty) {
         val workUnit = unclaimed.poll()
-        val created = ZKUtils.createEphemeral(zk, name + "/claimed-work/" + workUnit, myNodeID)
+        val created = ZKUtils.createEphemeral(zk,
+          name + "/claimed-" + config.workUnitShortName + "/" + workUnit, myNodeID)
 
         if (created)
           startWork(workUnit)
@@ -249,7 +247,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
   private def claimByCount() {
     if (state.get != NodeState.Started) return
     var claimed = myWorkUnits.size
-    val nodeCount = nodes.synchronized(nodes.size())
+    val nodeCount = nodes.synchronized(nodes.size)
 
     allWorkUnits.synchronized {
       val maxToClaim = {
@@ -257,14 +255,15 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
         else (allWorkUnits.size / nodeCount.toDouble).ceil
       }
 
-      log.debug("%s Nodes: %s. Work Units: %s.", name, nodeCount, allWorkUnits.size)
-      log.debug("Claiming work units pegged to my, and up to %s more.", maxToClaim)
+      log.debug("%s Nodes: %s. %s: %s.", name, nodeCount, config.workUnitName.capitalize, allWorkUnits.size)
+      log.debug("Claiming %s pegged to me, and up to %s more.", config.workUnitName, maxToClaim)
 
       val unclaimed = allWorkUnits.keys.toSet -- workUnitMap.keys.toSet
 
       for (workUnit <- unclaimed) {
         if ((isFairGame(workUnit) && claimed < maxToClaim) || isPeggedToMe(workUnit)) {
-          val created = ZKUtils.createEphemeral(zk, name + "/claimed-work/" + workUnit, myNodeID)
+          val created = ZKUtils.createEphemeral(zk,
+            name + "/claimed-" + config.workUnitShortName + "/" + workUnit, myNodeID)
 
           if (created) {
             startWork(workUnit)
@@ -278,7 +277,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
     }
 
     if (claimed > 0)
-      log.info("Claimed %s work units.", claimed)
+      log.info("Claimed %s %s.", claimed, config.workUnitName)
   }
 
   /**
@@ -344,7 +343,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
    */
   private def claimWorkPeggedToMe(workUnit: String) {
     while (true) {
-      if (ZKUtils.createEphemeral(zk, name + "/claimed-work/" + workUnit, myNodeID)) {
+      if (ZKUtils.createEphemeral(zk,
+          name + "/claimed-" + config.workUnitShortName + "/" + workUnit, myNodeID)) {
         startWork(workUnit)
         return
       } else {
@@ -378,7 +378,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
   private def shutdownWork(workUnit: String) {
     log.info("Shutting down work unit: %s...", workUnit)
     myWorkUnits.remove(workUnit)
-    ZKUtils.delete(zk, name + "/claimed-work/" + workUnit)
+    ZKUtils.delete(zk, name + "/claimed-" + config.workUnitShortName + "/" + workUnit)
     meters.remove(workUnit)
     listener.shutdownWork(workUnit)
   }
@@ -498,7 +498,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
    * Performs a simple rebalance. Target load is set to (# of work items / node count).
    */
   private def simpleRebalance(data: Option[Array[Byte]] = null) {
-    val nodeCount = nodes.synchronized(nodes.size())
+    val nodeCount = nodes.synchronized(nodes.size)
     val totalUnits = allWorkUnits.size
     val fairShare = (totalUnits.toDouble / nodeCount).ceil.toInt
 
@@ -526,7 +526,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
    * the cluster. This is determined by the total load divided by the number of nodes.
    */
   private def evenDistribution() : Double = {
-    loadMap.values.sum / nodes.synchronized(nodes.size())
+    loadMap.values.sum / nodes.synchronized(nodes.size)
   }
 
 
