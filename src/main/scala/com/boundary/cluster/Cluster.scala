@@ -36,7 +36,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
   private var autoRebalanceFuture : Option[ScheduledFuture[_]] = None
 
   // Metrics
-  val listGauge = metrics.gauge[List[String]]("my_" + config.workUnitShortName) { myWorkUnits.toList }
+  val listGauge = metrics.gauge[String]("my_" + config.workUnitShortName) { myWorkUnits.mkString(", ") }
   val countGauge = metrics.gauge[Int]("my_" + config.workUnitShortName + "_count") { myWorkUnits.size }
 
   private val zkNodeCreated = new AtomicBoolean(false)
