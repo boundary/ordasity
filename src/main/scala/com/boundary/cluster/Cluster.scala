@@ -220,13 +220,14 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
   private def claimByLoad() {
     allWorkUnits.synchronized {
 
-      val unclaimed = new LinkedList[String](allWorkUnits.keys.toSet -- workUnitMap.keys.toSet -- myWorkUnits)
-      for (workUnit <- unclaimed) {
+      val peggedCheck = new LinkedList[String](allWorkUnits.keys.toSet -- workUnitMap.keys.toSet -- myWorkUnits)
+      for (workUnit <- peggedCheck) {
         if (isPeggedToMe(workUnit)) {
           claimWorkPeggedToMe(workUnit)
-          unclaimed.remove(workUnit)
         }
       }
+
+      val unclaimed = new LinkedList[String](allWorkUnits.keys.toSet -- workUnitMap.keys.toSet -- myWorkUnits)
 
       while (myLoad() <= evenDistribution && !unclaimed.isEmpty) {
         val workUnit = unclaimed.poll()

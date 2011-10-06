@@ -4,7 +4,7 @@
 
     <groupId>com.boundary</groupId>
     <artifactId>cluster</artifactId>
-    <version>0.1.3</version>
+    <version>0.1.4</version>
 
     <name>Cluster</name>
     <url>http://www.boundary.com</url>
