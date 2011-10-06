@@ -220,13 +220,13 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
   private def claimByLoad() {
     allWorkUnits.synchronized {
 
-      val unclaimed = new LinkedList[String](allWorkUnits.keys.toSet -- workUnitMap.keys.toSet)
+      val unclaimed = new LinkedList[String](allWorkUnits.keys.toSet -- workUnitMap.keys.toSet -- myWorkUnits)
       for (workUnit <- unclaimed) {
-        if (isPeggedToMe(workUnit))
+        if (isPeggedToMe(workUnit)) {
           claimWorkPeggedToMe(workUnit)
+          unclaimed.remove(workUnit)
+        }
       }
-
-      unclaimed.removeAll(myWorkUnits)
 
       while (myLoad() <= evenDistribution && !unclaimed.isEmpty) {
         val workUnit = unclaimed.poll()
@@ -350,7 +350,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
         startWork(workUnit)
         return
       } else {
-        log.warn("Error establishing ownership of %s. Retrying...", workUnit)
+        log.warn("Error establishing ownership of %s. Retrying in one second...", workUnit)
         Thread.sleep(1000)
       }
     }
