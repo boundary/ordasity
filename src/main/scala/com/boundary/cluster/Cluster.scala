@@ -231,11 +231,14 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
 
       while (myLoad() <= evenDistribution && !unclaimed.isEmpty) {
         val workUnit = unclaimed.poll()
-        val created = ZKUtils.createEphemeral(zk,
-          name + "/claimed-" + config.workUnitShortName + "/" + workUnit, myNodeID)
+        if (isFairGame(workUnit)) {
+          val created = ZKUtils.createEphemeral(zk,
+            name + "/claimed-" + config.workUnitShortName + "/" + workUnit, myNodeID)
 
-        if (created)
-          startWork(workUnit)
+          if (created)
+            startWork(workUnit)
+        }
+
       }
     }
   }
