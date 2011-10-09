@@ -1,8 +1,11 @@
 package com.boundary.cluster
 
 import com.yammer.metrics.Meter
+import com.twitter.zookeeper.ZooKeeperClient
 
 trait Listener {
+  def onJoin(client: ZooKeeperClient)
+  def onLeave()
   def shutdownWork(workUnit: String)
 }
 

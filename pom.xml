@@ -4,7 +4,7 @@
 
     <groupId>com.boundary</groupId>
     <artifactId>cluster</artifactId>
-    <version>0.1.5</version>
+    <version>0.1.7</version>
 
     <name>Cluster</name>
     <url>http://www.boundary.com</url>
@@ -120,7 +120,6 @@
                           <artifactSet>
                             <excludes>
                               <exclude>org.scala-tools.testing:specs_2.8.0</exclude>
-                              <exclude>net.lag:configgy</exclude>
                               <exclude>com.twitter:json_2.8.0</exclude>
                               <exclude>junit:junit</exclude>
                             </excludes>

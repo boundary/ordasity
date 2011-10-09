@@ -1,8 +1,10 @@
 import java.util.Random
 import com.yammer.metrics.Meter
 import java.util.concurrent.CountDownLatch
-import cluster.{Cluster, ClusterConfig, ClusterListener, SmartListener}
+import com.boundary.cluster.{Cluster, ClusterConfig, ClusterListener, SmartListener}
 import com.codahale.logula.Logging
+import com.yammer.metrics.Meter
+import com.twitter.zookeeper.ZooKeeperClient
 
 Logging.configure
 
@@ -15,11 +17,15 @@ val config = new ClusterConfig("localhost:2181").
   useSmartBalancing(false).
   setDrainTime(3).
   setZKTimeout(3).
-  setMultitenant(true)
+  setUseSoftHandoff(true).
+  setNodeId(java.util.UUID.randomUUID().toString)
 
-val listener = new ClusterListener {
+val listener = new SmartListener {
+  def onJoin(client: ZooKeeperClient) = {}
+  def onLeave() = {}
+
   // Do yer thang, mark dat meter.
-  def startWork(workUnit: String) = {
+  def startWork(workUnit: String, meter: Meter) = {
 	//meter.mark(random.nextInt(1000))
   }
 
@@ -27,7 +33,7 @@ val listener = new ClusterListener {
   def shutdownWork(workUnit: String) = null
 }
 
-val clustar = new Cluster("ServiceName", listener, config)
+val clustar = new Cluster("example_service", listener, config)
 
 clustar.join()
 latch.await()

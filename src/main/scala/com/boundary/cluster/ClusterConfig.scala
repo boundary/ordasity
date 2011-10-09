@@ -13,6 +13,7 @@ class ClusterConfig(val hosts: String) {
   var workUnitName = "work-units"
   var workUnitShortName = "work"
   var nodeId = InetAddress.getLocalHost.getHostName
+  var useSoftHandoff = false
 
   def setAutoRebalance(to: Boolean) : ClusterConfig = {
     enableAutoRebalance = to
@@ -53,5 +54,11 @@ class ClusterConfig(val hosts: String) {
     nodeId = to
     this
   }
+
+  def setUseSoftHandoff(to: Boolean) : ClusterConfig = {
+    useSoftHandoff = to
+    this
+  }
+
 
 }

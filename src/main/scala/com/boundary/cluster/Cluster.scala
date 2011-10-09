@@ -10,8 +10,8 @@ import scala.collection.JavaConversions._
 import org.cliffc.high_scale_lib.NonBlockingHashSet
 import java.util.concurrent.atomic.{AtomicReference, AtomicBoolean}
 import java.util.concurrent.{TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
-import java.util.{ArrayList, LinkedList, TimerTask}
 import java.nio.charset.Charset
+import java.util.{HashSet, ArrayList, LinkedList, TimerTask, Set => JSet, Collection => JCollection}
 
 object NodeState extends Enumeration {
   type NodeState = Value
@@ -27,6 +27,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
   private val myWorkUnits = new NonBlockingHashSet[String]
   private val allWorkUnits = AtomicMap.atomicNBHM[String, String]
   private val workUnitMap = AtomicMap.atomicNBHM[String, String]
+  private val handoffRequests = new HashSet[String]
+  private val handoffResults = AtomicMap.atomicNBHM[String, String]
   private val loadMap = AtomicMap.atomicNBHM[String, Double]
   private val workUnitsPeggedToMe = new NonBlockingHashSet[String]
 
@@ -96,7 +98,12 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
     zk.createPath(name + "/meta/rebalance")
     zk.createPath(name + "/meta/workload")
     zk.createPath(name + "/claimed-" + config.workUnitShortName)
+    zk.createPath(name + "/handoff-requests")
+    zk.createPath(name + "/handoff-result")
     joinCluster()
+
+    listener.onJoin(zk)
+
     registerWatchers()
 
     state.set(NodeState.Started)
@@ -178,6 +185,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
      }
 
       log.info("Nodes: %s".format(nodes.mkString(", ")))
+      claimWork()
+      verifyIntegrity()
     })
 
     zk.watchChildrenWithData[String](config.workUnitName,
@@ -194,6 +203,29 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
       if (!unclaimedWork.isEmpty) claimWork()
       verifyIntegrity()
     })
+
+    if (config.useSoftHandoff) {
+      zk.watchChildren(name + "/handoff-requests", { (newWorkUnits: Seq[String]) =>
+        refreshSet(handoffRequests, newWorkUnits)
+        log.info("Handoff requests changed: %s".format(handoffRequests.mkString(", ")))
+        claimWork()
+      })
+
+      zk.watchChildrenWithData[String](name + "/handoff-result",
+        handoffResults, bytesToString(_), { workUnit: String =>
+
+        // If I am the node which accepted this handoff, finish the job.
+        val destinationNode = handoffResults.get(workUnit).getOrElse("")
+        if (myWorkUnits.contains(workUnit) && myNodeID.equals(destinationNode))
+          finishHandoff(workUnit)
+
+        else if (myWorkUnits.contains(workUnit) && !destinationNode.equals("") && !myNodeID.equals(destinationNode)) {
+          log.info("Handoff of %s to %s completed. Shutting down %s", workUnit, handoffResults.get(workUnit), workUnit)
+          ZKUtils.delete(zk, name + "/handoff-requests/" + workUnit)
+          shutdownWork(workUnit)
+        }
+      })
+    }
 
     zk.watchNode(name + "/meta/rebalance", rebalance(_))
 
@@ -220,25 +252,16 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
   private def claimByLoad() {
     allWorkUnits.synchronized {
 
-      val peggedCheck = new LinkedList[String](allWorkUnits.keys.toSet -- workUnitMap.keys.toSet -- myWorkUnits)
-      for (workUnit <- peggedCheck) {
-        if (isPeggedToMe(workUnit)) {
+      val peggedCheck = new LinkedList[String](allWorkUnits.keys.toSet -- workUnitMap.keys.toSet -- myWorkUnits -- handoffResults.keys)
+      for (workUnit <- peggedCheck)
+        if (isPeggedToMe(workUnit))
           claimWorkPeggedToMe(workUnit)
-        }
-      }
 
-      val unclaimed = new LinkedList[String](allWorkUnits.keys.toSet -- workUnitMap.keys.toSet -- myWorkUnits)
+      val unclaimed = new LinkedList[String](peggedCheck -- myWorkUnits)
 
       while (myLoad() <= evenDistribution && !unclaimed.isEmpty) {
         val workUnit = unclaimed.poll()
-        if (isFairGame(workUnit)) {
-          val created = ZKUtils.createEphemeral(zk,
-            name + "/claimed-" + config.workUnitShortName + "/" + workUnit, myNodeID)
-
-          if (created)
-            startWork(workUnit)
-        }
-
+        if (isFairGame(workUnit)) attemptToClaim(workUnit)
       }
     }
   }
@@ -261,22 +284,24 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
         else (allWorkUnits.size / nodeCount.toDouble).ceil
       }
 
-      log.debug("%s Nodes: %s. %s: %s.", name, nodeCount, config.workUnitName.capitalize, allWorkUnits.size)
-      log.debug("Claiming %s pegged to me, and up to %s more.", config.workUnitName, maxToClaim)
+      // Complete handoff for work units this node has accepted from another
+      //if (config.useSoftHandoff) {
+      //  val handoffComplete = myWorkUnits & handoffResults.keySet
+      //  handoffComplete.foreach(u => finishHandoff(u))
+      //}
 
-      val unclaimed = allWorkUnits.keys.toSet -- workUnitMap.keys.toSet
+      log.info("%s Nodes: %s. %s: %s.", name, nodeCount, config.workUnitName.capitalize, allWorkUnits.size)
+      log.info("Claiming %s pegged to me, and up to %s more.", config.workUnitName, maxToClaim)
+
+      val unclaimed = allWorkUnits.keys.toSet -- workUnitMap.keys.toSet ++ handoffRequests -- handoffResults.keys
 
       for (workUnit <- unclaimed) {
         if ((isFairGame(workUnit) && claimed < maxToClaim) || isPeggedToMe(workUnit)) {
-          val created = ZKUtils.createEphemeral(zk,
-            name + "/claimed-" + config.workUnitShortName + "/" + workUnit, myNodeID)
 
-          if (created) {
-            startWork(workUnit)
+          if (config.useSoftHandoff && handoffRequests.contains(workUnit) && attemptToClaim(workUnit, true)) {
             claimed += 1
-          } else {
-            if (isPeggedToMe(workUnit))
-              claimWorkPeggedToMe(workUnit)
+          } else if (attemptToClaim(workUnit)) {
+            claimed += 1
           }
         }
       }
@@ -285,6 +310,41 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
     if (claimed > 0)
       log.info("Claimed %s %s.", claimed, config.workUnitName)
   }
+
+  def finishHandoff(workUnit: String) {
+    log.info("Handoff of %s finalized; deleting claim ZNode for %s.", workUnit, workUnit)
+    claimWorkPeggedToMe(workUnit, false)
+    ZKUtils.delete(zk, name + "/handoff-result/" + workUnit)
+  }
+
+  def attemptToClaim(workUnit: String, claimForHandoff: Boolean = false) : Boolean = {
+    val path = {
+      if (claimForHandoff) name + "/handoff-result/" + workUnit
+      else name + "/claimed-" + config.workUnitShortName + "/" + workUnit
+    }
+
+    val created = ZKUtils.createEphemeral(zk, path, myNodeID)
+
+    if (created) {
+      startWork(workUnit)
+      true
+    } else if (isPeggedToMe(workUnit)) {
+      claimWorkPeggedToMe(workUnit)
+      true
+    }
+
+    false
+  }
+
+  /**
+    * Requests that another node take over for a work unit by creating a ZNode
+    * at handoff-requests. This will trigger a claim cycle and adoption.
+   */
+  def requestHandoff(workUnit: String) {
+    log.info("Requesting handoff for %s", workUnit)
+    ZKUtils.createEphemeral(zk, name + "/handoff-requests/" + workUnit)
+  }
+
 
   /**
     * Determines whether or not a given work unit is designated "claimable" by this node.
@@ -347,11 +407,12 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
    * Claims a work unit pegged to this node, waiting for the ZNode to become available
    * (i.e., deleted by the node which previously owned it).
    */
-  private def claimWorkPeggedToMe(workUnit: String) {
+  private def claimWorkPeggedToMe(workUnit: String, callStartWork: Boolean = true) {
     while (true) {
       if (ZKUtils.createEphemeral(zk,
           name + "/claimed-" + config.workUnitShortName + "/" + workUnit, myNodeID)) {
-        startWork(workUnit)
+        if (callStartWork)
+          startWork(workUnit)
         return
       } else {
         log.warn("Error establishing ownership of %s. Retrying in one second...", workUnit)
@@ -476,6 +537,40 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
   }
 
   /**
+   * Drains this node's share of the cluster workload down to a specific number
+   * of work units over a period of time specified in the configuration with soft handoff.
+   */
+  def drainToCountWithHandoff(targetCount: Int, shutdown: Boolean = false) {
+    log.info("Draining with handoff. Target count: %s, Current: %s", targetCount, myWorkUnits.size)
+    if (targetCount >= myWorkUnits.size)
+      return
+
+    val amountToHandoff = myWorkUnits.size - targetCount
+    log.info("Requesting handoff for %s / %s work units over %s seconds",
+      amountToHandoff, myWorkUnits.size, config.drainTime)
+
+    // Build a list of work units to hand off.
+    val toHandOff = new LinkedList[String]
+    val wuList = myWorkUnits.toList
+    for (i <- (0 to amountToHandoff - 1))
+      if (wuList.size - 1 >= i) toHandOff.add(wuList(i))
+
+    val handoffTask = new TimerTask {
+      def run() {
+        if (toHandOff.isEmpty) cancel()
+        else requestHandoff(toHandOff.poll())
+      }
+    }
+
+    log.info("Releasing %s / %s work units over %s seconds: %s",
+      amountToHandoff, myWorkUnits.size, config.drainTime, toHandOff.mkString(", "))
+
+    if (!myWorkUnits.isEmpty)
+      scheduleDrain(handoffTask, toHandOff.size)
+  }
+
+
+  /**
    * Initiates a cluster rebalance. If smart balancing is enabled, the target load
    * is set to (total cluster load / node count), where "load" is determined by the
    * sum of all work unit meters in the cluster. If smart balancing is disabled,
@@ -511,8 +606,11 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
     log.info("Simple Rebalance triggered. Total work units: %s. Nodes: %s. My load: %s. " +
       "Target: %s", totalUnits, nodeCount, myWorkUnits.size, fairShare)
 
-    if (myWorkUnits.size > fairShare)
-      drainToCount(fairShare)
+    if (myWorkUnits.size > fairShare) {
+      if (config.useSoftHandoff) drainToCountWithHandoff(fairShare)
+      else drainToCount(fairShare)
+
+    }
   }
 
   /**
@@ -548,6 +646,17 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
    */
   private def bytesToDouble(bytes: Array[Byte]) : Double = {
     bytesToString(bytes).toDouble
+  }
+
+  /**
+   * Utility method for swapping out the contents of a set while holding its lock.
+   */
+  private def refreshSet(oldSet: JSet[String], newSet: JCollection[String]) {
+    oldSet.synchronized {
+      oldSet.clear()
+      oldSet.addAll(newSet)
+    }
+
   }
 
 }
