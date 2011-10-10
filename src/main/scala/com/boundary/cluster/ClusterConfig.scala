@@ -14,6 +14,7 @@ class ClusterConfig(val hosts: String) {
   var workUnitShortName = "work"
   var nodeId = InetAddress.getLocalHost.getHostName
   var useSoftHandoff = false
+  var handoffShutdownDelay = 10
 
   def setAutoRebalance(to: Boolean) : ClusterConfig = {
     enableAutoRebalance = to
@@ -60,5 +61,9 @@ class ClusterConfig(val hosts: String) {
     this
   }
 
+  def setHandoffShutdownDelay(to: Int) : ClusterConfig = {
+    handoffShutdownDelay = to
+    this
+  }
 
 }

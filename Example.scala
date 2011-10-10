@@ -13,7 +13,7 @@ val latch = new CountDownLatch(1)
 
 val config = new ClusterConfig("localhost:2181").
   setAutoRebalance(true).
-  setRebalanceInterval(10).
+  setRebalanceInterval(15).
   useSmartBalancing(false).
   setDrainTime(3).
   setZKTimeout(3).
