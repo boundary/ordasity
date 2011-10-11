@@ -5,16 +5,21 @@ import com.boundary.cluster.{Cluster, ClusterConfig, ClusterListener, SmartListe
 import com.codahale.logula.Logging
 import com.yammer.metrics.Meter
 import com.twitter.zookeeper.ZooKeeperClient
+import java.util.concurrent.{ScheduledThreadPoolExecutor, TimeUnit, ScheduledFuture}
+import java.util.{HashMap, TimerTask}
 
 Logging.configure
 
 val random = new Random()
 val latch = new CountDownLatch(1)
+val pool = new ScheduledThreadPoolExecutor(1)
+
+val futures = new HashMap[String, ScheduledFuture[_]]
 
 val config = new ClusterConfig("localhost:2181").
   setAutoRebalance(true).
   setRebalanceInterval(15).
-  useSmartBalancing(false).
+  useSmartBalancing(true).
   setDrainTime(3).
   setZKTimeout(3).
   setUseSoftHandoff(true).
@@ -26,11 +31,17 @@ val listener = new SmartListener {
 
   // Do yer thang, mark dat meter.
   def startWork(workUnit: String, meter: Meter) = {
-	//meter.mark(random.nextInt(1000))
+    val task = new TimerTask {
+      def run() = meter.mark(random.nextInt(1000))
+    }
+	  val future = pool.scheduleAtFixedRate(task, 0, 1, TimeUnit.SECONDS)
+	  futures.put(workUnit, future)
   }
 
   // Stop doin' that thang
-  def shutdownWork(workUnit: String) = null
+  def shutdownWork(workUnit: String) {
+    futures.get(workUnit).cancel(true)
+  }
 }
 
 val clustar = new Cluster("example_service", listener, config)
