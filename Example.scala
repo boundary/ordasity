@@ -1,7 +1,6 @@
 import java.util.Random
-import com.yammer.metrics.Meter
 import java.util.concurrent.CountDownLatch
-import com.boundary.cluster.{Cluster, ClusterConfig, ClusterListener, SmartListener}
+import com.boundary.cluster.{Cluster, ClusterConfig, SmartListener}
 import com.codahale.logula.Logging
 import com.yammer.metrics.Meter
 import com.twitter.zookeeper.ZooKeeperClient

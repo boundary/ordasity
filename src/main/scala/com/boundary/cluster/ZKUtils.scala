@@ -39,7 +39,7 @@ object ZKUtils extends Logging {
       zk.set(path, data.getBytes)
     } catch {
       case e: NoNodeException =>
-        zk.create(path, data.getBytes, CreateMode.PERSISTENT)
+        zk.create(path, data.getBytes, CreateMode.EPHEMERAL)
     }
   }
 

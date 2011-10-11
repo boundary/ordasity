@@ -64,8 +64,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
    * Drains all work claimed by this node over the time period provided in the config
    * (default: 60 seconds), prevents it from claiming new work, and exits the cluster.
    */
-  def shutdown() {
-    log.info("Shutdown initiated; beginning drain...")
+  def shutdown(hard: Boolean = false) {
 
     if (loadFuture.isDefined)
       loadFuture.get.cancel(true)
@@ -73,8 +72,15 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
     if (autoRebalanceFuture.isDefined)
       autoRebalanceFuture.get.cancel(true)
 
-    state.set(NodeState.Draining)
-    drainToCount(0, true)
+    if (hard) {
+      log.warn("Forcible shutdown initiated due to connection loss...")
+      myWorkUnits.map(w => shutdownWork(w, true, false))
+      myWorkUnits.clear()
+    } else {
+      log.info("Shutdown initiated; beginning drain...")
+      state.set(NodeState.Draining)
+      drainToCount(0, true)
+    }
   }
 
   /**
@@ -91,6 +97,9 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
    */
   private def onConnect(client: ZooKeeperClient) {
     zk = client
+
+    if (state.get() != NodeState.Fresh)
+      ensureCleanStartup()
 
     log.info("Connected to Zookeeper (ID: %s).", myNodeID)
     zk.createPath(name + "/nodes")
@@ -115,6 +124,20 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
 
     if (config.enableAutoRebalance)
       scheduleRebalancing()
+  }
+
+  def ensureCleanStartup() {
+    shutdown(true)
+    nodes.clear()
+    meters.clear()
+    myWorkUnits.clear()
+    allWorkUnits.clear()
+    workUnitMap.clear()
+    handoffRequests.clear()
+    handoffResults.clear()
+    loadMap.clear()
+    workUnitsPeggedToMe.clear()
+    state.set(NodeState.Fresh)
   }
 
   /**
@@ -150,7 +173,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
     }
 
     if (config.useSmartBalancing && listener.isInstanceOf[SmartListener])
-      loadFuture = Some(pool.scheduleAtFixedRate(sendLoadToZookeeper, 0, 1, TimeUnit.MINUTES))
+      loadFuture = Some(pool.scheduleAtFixedRate(sendLoadToZookeeper, 0, 10, TimeUnit.SECONDS))
   }
 
   /**
@@ -179,10 +202,10 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
    */
   private def registerWatchers() {
     zk.watchChildren(name + "/nodes", { (newNodes: Seq[String]) =>
-     nodes.synchronized {
-       nodes.clear()
-       nodes.addAll(newNodes)
-     }
+      nodes.synchronized {
+        nodes.clear()
+        nodes.addAll(newNodes)
+      }
 
       log.info("Nodes: %s".format(nodes.mkString(", ")))
       claimWork()
@@ -198,9 +221,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
 
     zk.watchChildrenWithData[String](name + "/claimed-" + config.workUnitShortName,
         workUnitMap, bytesToString(_), { data: String =>
-      log.debug(config.workUnitName.capitalize + " / Node Mapping changed: %s", workUnitMap)
-      val unclaimedWork = allWorkUnits.keys.toSet -- workUnitMap.keys
-      if (!unclaimedWork.isEmpty) claimWork()
+      log.info(config.workUnitName.capitalize + " / Node Mapping changed: %s", workUnitMap)
+      claimWork()
       verifyIntegrity()
     })
 
@@ -209,6 +231,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
       zk.watchChildren(name + "/handoff-requests", { (newWorkUnits: Seq[String]) =>
         refreshSet(handoffRequests, newWorkUnits)
         log.debug("Handoff requests changed: %s".format(handoffRequests.mkString(", ")))
+        verifyIntegrity()
         claimWork()
       })
 
@@ -427,6 +450,12 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
         log.info("Discovered I'm serving a work unit that's now " +
           "pegged to someone else. Shutting down %s", workUnit)
         shutdownWork(workUnit)
+
+      } else if (workUnitMap.contains(workUnit) && !workUnitMap.get(workUnit).get.equals(myNodeID) &&
+          !handoffResults.get(workUnit).getOrElse("None").equals(myNodeID)) {
+        log.info("Discovered I'm serving a work unit that's now " +
+          "served by %s. Shutting down %s", workUnitMap.get(workUnit).get, workUnit)
+        shutdownWork(workUnit, true, false)
       }
     }
   }
@@ -469,10 +498,10 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
   /**
    * Shuts down a work unit by removing the claim in ZK and calling the listener.
    */
-  private def shutdownWork(workUnit: String, doLog: Boolean = true) {
+  private def shutdownWork(workUnit: String, doLog: Boolean = true, deleteZNode: Boolean = true) {
     if (doLog) log.info("Shutting down %s: %s...", config.workUnitName, workUnit)
     myWorkUnits.remove(workUnit)
-    ZKUtils.delete(zk, name + "/claimed-" + config.workUnitShortName + "/" + workUnit)
+    if (deleteZNode) ZKUtils.delete(zk, name + "/claimed-" + config.workUnitShortName + "/" + workUnit)
     meters.remove(workUnit)
     listener.shutdownWork(workUnit)
   }
