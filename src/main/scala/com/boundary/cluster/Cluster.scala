@@ -13,16 +13,26 @@ import java.util.concurrent.atomic.{AtomicReference, AtomicBoolean}
 import java.util.concurrent.{TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
 import java.util.{HashSet, ArrayList, LinkedList, TimerTask, Set => JSet, Collection => JCollection}
 
+import javax.management.ObjectName
+import java.lang.management.ManagementFactory
+
+trait ClusterMBean {
+  def join() : Cluster
+  def shutdown()
+}
+
 object NodeState extends Enumeration {
   type NodeState = Value
   val Fresh, Started, Draining, Shutdown = Value
 }
 
-class Cluster(name: String, listener: Listener, config: ClusterConfig) extends Logging with Instrumented {
+class Cluster(name: String, listener: Listener, config: ClusterConfig) extends ClusterMBean with Logging with Instrumented {
   val myNodeID = config.nodeId
 
+  ManagementFactory.getPlatformMBeanServer.registerMBean(this, new ObjectName(name + ":" + "name=Cluster"))
+
   // Cluster, node, and work unit state
-  private val nodes = new ArrayList[String]()
+  private val nodes = AtomicMap.atomicNBHM[String, String]
   private val meters = AtomicMap.atomicNBHM[String, Meter]
   private val myWorkUnits = new NonBlockingHashSet[String]
   private val allWorkUnits = AtomicMap.atomicNBHM[String, String]
@@ -41,7 +51,6 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
   val listGauge = metrics.gauge[String]("my_" + config.workUnitShortName) { myWorkUnits.mkString(", ") }
   val countGauge = metrics.gauge[Int]("my_" + config.workUnitShortName + "_count") { myWorkUnits.size }
 
-  private val zkNodeCreated = new AtomicBoolean(false)
   private val state = new AtomicReference[NodeState.Value](NodeState.Fresh)
 
   var zk : ZooKeeperClient = null
@@ -64,32 +73,35 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
    * Drains all work claimed by this node over the time period provided in the config
    * (default: 60 seconds), prevents it from claiming new work, and exits the cluster.
    */
-  def shutdown(hard: Boolean = false) {
+  def shutdown() {
+    if (loadFuture.isDefined) loadFuture.get.cancel(true)
+    if (autoRebalanceFuture.isDefined) autoRebalanceFuture.get.cancel(true)
+    log.info("Shutdown initiated; beginning drain...")
+    setState(NodeState.Draining)
+    drainToCount(0, true)
+  }
 
-    if (loadFuture.isDefined)
-      loadFuture.get.cancel(true)
-
-    if (autoRebalanceFuture.isDefined)
-      autoRebalanceFuture.get.cancel(true)
-
-    if (hard) {
-      log.warn("Forcible shutdown initiated due to connection loss...")
-      myWorkUnits.map(w => shutdownWork(w, true, false))
-      myWorkUnits.clear()
-    } else {
-      log.info("Shutdown initiated; beginning drain...")
-      state.set(NodeState.Draining)
-      drainToCount(0, true)
-    }
+  def forceShutdown() {
+    if (loadFuture.isDefined) loadFuture.get.cancel(true)
+    if (autoRebalanceFuture.isDefined) autoRebalanceFuture.get.cancel(true)
+    log.warn("Forcible shutdown initiated due to connection loss...")
+    myWorkUnits.map(w => shutdownWork(w, true, false))
+    myWorkUnits.clear()
+    listener.onLeave()
   }
 
   /**
    * Finalizes the shutdown sequence. Called once the drain operation completes.
    */
   private def completeShutdown() {
-    zk.close()
-    zkNodeCreated.set(false)
-    state.set(NodeState.Shutdown)
+    setState(NodeState.Shutdown)
+    try {
+      zk.close()
+    } catch {
+      case e: Exception => log.warn(e, "Zookeeper reported exception on shutdown.")
+    }
+    listener.onLeave()
+    state.set(NodeState.Fresh)
   }
 
   /**
@@ -115,7 +127,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
 
     registerWatchers()
 
-    state.set(NodeState.Started)
+    setState(NodeState.Started)
     claimWork()
     verifyIntegrity()
 
@@ -127,7 +139,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
   }
 
   def ensureCleanStartup() {
-    shutdown(true)
+    forceShutdown()
     nodes.clear()
     meters.clear()
     myWorkUnits.clear()
@@ -163,7 +175,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
         meters.foreach { case(workUnit, meter) =>
           ZKUtils.setOrCreate(zk, name + "/meta/workload/" + workUnit, meter.oneMinuteRate.toString)
         }
-        ZKUtils.setOrCreate(zk, name + "/nodes/" + myNodeID, myLoad().toString)
+        ZKUtils.setOrCreate(zk, name + "/nodes/" + myNodeID, state.toString)
 
         if (config.useSmartBalancing)
           log.info("My load: %s", myLoad())
@@ -173,7 +185,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
     }
 
     if (config.useSmartBalancing && listener.isInstanceOf[SmartListener])
-      loadFuture = Some(pool.scheduleAtFixedRate(sendLoadToZookeeper, 0, 10, TimeUnit.SECONDS))
+      loadFuture = Some(pool.scheduleAtFixedRate(sendLoadToZookeeper, 0, 1, TimeUnit.MINUTES))
   }
 
   /**
@@ -182,9 +194,9 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
    * detects the previous disconnect could prohibit the node from properly launching.
    */
   private def joinCluster() {
-    while (!zkNodeCreated.get) {
-      if (ZKUtils.createEphemeral(zk, name + "/nodes/" + myNodeID)) {
-        zkNodeCreated.set(true)
+    while (true) {
+      if (ZKUtils.createEphemeral(zk, name + "/nodes/" + myNodeID, NodeState.Fresh.toString)) {
+        return
       } else {
         log.warn("Unable to register with Zookeeper on launch. " +
           "Is %s already running on this host? Retrying in 1 second...", name)
@@ -201,12 +213,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
    * watch "<service-name>/meta/workload" for changes to the cluster's workload.
    */
   private def registerWatchers() {
-    zk.watchChildren(name + "/nodes", { (newNodes: Seq[String]) =>
-      nodes.synchronized {
-        nodes.clear()
-        nodes.addAll(newNodes)
-      }
-
+    zk.watchChildrenWithData[String](name + "/nodes", nodes, bytesToString(_), { data: String =>
       log.info("Nodes: %s".format(nodes.mkString(", ")))
       claimWork()
       verifyIntegrity()
@@ -221,7 +228,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
 
     zk.watchChildrenWithData[String](name + "/claimed-" + config.workUnitShortName,
         workUnitMap, bytesToString(_), { data: String =>
-      log.info(config.workUnitName.capitalize + " / Node Mapping changed: %s", workUnitMap)
+      log.debug(config.workUnitName.capitalize + " / Node Mapping changed: %s", workUnitMap)
       claimWork()
       verifyIntegrity()
     })
@@ -253,7 +260,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
           val runnable = new Runnable {
             def run() {
               log.info("Shutting down %s following handoff to %s.", workUnit, handoffResults.get(workUnit).getOrElse("(None)"))
-              shutdownWork(workUnit, false)
+              shutdownWork(workUnit, false, true)
               if (myWorkUnits.size() == 0 && state.get() == NodeState.Draining)
                 shutdown()
             }
@@ -277,6 +284,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
    * on node and cluster load. If simple balancing is in effect, claim by count.
    */
   private def claimWork() {
+    if (state.get != NodeState.Started) return
+
     if (config.useSmartBalancing && listener.isInstanceOf[SmartListener])
       claimByLoad()
     else
@@ -317,9 +326,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
     * amount is in addition to any work units which are pegged to this node.
    */
   private def claimByCount() {
-    if (state.get != NodeState.Started) return
     var claimed = myWorkUnits.size
-    val nodeCount = nodes.synchronized(nodes.size)
+    val nodeCount = activeNodeSize()
 
     allWorkUnits.synchronized {
       val maxToClaim = {
@@ -534,40 +542,34 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
         currentLoad -= workUnitLoad
       }
     }
+    val drainInterval = ((config.drainTime.toDouble / drainList.size) * 1000).intValue()
 
     val drainTask = new TimerTask {
+
       def run() {
         if (drainList.isEmpty || myLoad <= evenDistribution)
-          cancel()
+          return
         else if (useHandoff)
           requestHandoff(drainList.poll)
         else
           shutdownWork(drainList.poll)
+
+        pool.schedule(this, drainInterval, TimeUnit.MILLISECONDS)
       }
     }
 
     if (!drainList.isEmpty) {
       log.info("Releasing work units over %s seconds. Current load: %s. Target: %s. " +
         "Releasing: %s", time, currentLoad, targetLoad, drainList.mkString(", "))
-      scheduleDrain(drainTask, drainList.size)
+      pool.schedule(drainTask, 0, TimeUnit.SECONDS)
     }
-  }
-
-
-  /**
-   * Schedules a task to unclaim <n> work units evenly over an interval of time
-   * specified by the configuration.
-   */
-  private def scheduleDrain(task: TimerTask, numToDrain: Int) {
-    pool.scheduleAtFixedRate(task, 0,
-      ((config.drainTime.toDouble / numToDrain) * 1000).toInt, TimeUnit.MILLISECONDS)
   }
 
   /**
    * Drains this node's share of the cluster workload down to a specific number
    * of work units over a period of time specified in the configuration with soft handoff if enabled..
    */
-  def drainToCount(targetCount: Int, doShutdown: Boolean = false, useHandoff: Boolean = config.useSoftHandoff) {
+  def drainToCount(targetCount: Int, doShutdown: Boolean = false, useHandoff: Boolean = config.useSoftHandoff) : Unit = {
     val msg = if (useHandoff) " with handoff" else ""
     log.info("Draining %s%s. Target count: %s, Current: %s", config.workUnitName, msg, targetCount, myWorkUnits.size)
     if (targetCount >= myWorkUnits.size)
@@ -585,15 +587,19 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
     for (i <- (0 to amountToDrain - 1))
       if (wuList.size - 1 >= i) toHandOff.add(wuList(i))
 
+    val drainInterval = ((config.drainTime.toDouble / toHandOff.size) * 1000).intValue()
+
     val handoffTask = new TimerTask {
       def run() {
         if (toHandOff.isEmpty) {
-          cancel()
-          if (targetCount == 0 && doShutdown && useHandoff == false) completeShutdown()
-        } else if (useHandoff)
-          requestHandoff(toHandOff.poll())
-        else
-          shutdownWork(toHandOff.poll())
+          if (targetCount == 0 && doShutdown) completeShutdown()
+          return
+        } else {
+          val workUnit = toHandOff.poll()
+          if (useHandoff && !isPeggedToMe(workUnit)) requestHandoff(workUnit)
+          else shutdownWork(workUnit)
+        }
+        pool.schedule(this, drainInterval, TimeUnit.MILLISECONDS)
       }
     }
 
@@ -601,7 +607,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
       amountToDrain, myWorkUnits.size, config.drainTime, toHandOff.mkString(", "))
 
     if (!myWorkUnits.isEmpty)
-      scheduleDrain(handoffTask, toHandOff.size)
+      pool.schedule(handoffTask, 0, TimeUnit.SECONDS)
   }
 
 
@@ -645,7 +651,6 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
 
       if (config.useSoftHandoff) drainToCount(fairShare)
       else drainToCount(fairShare)
-
     }
   }
 
@@ -663,12 +668,15 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
 
   /**
    * When smart balancing is enabled, calculates the even distribution of load about
-   * the cluster. This is determined by the total load divided by the number of nodes.
+   * the cluster. This is determined by the total load divided by the number of alive nodes.
    */
   private def evenDistribution() : Double = {
-    loadMap.values.sum / nodes.synchronized(nodes.size)
+    loadMap.values.sum / activeNodeSize().toDouble
   }
 
+  private def activeNodeSize() : Int = {
+    nodes.filter (n => n._2 != null && n._2.equals(NodeState.Started.toString)).size
+  }
 
   /**
    * Utility method for converting an array of bytes to a string.
@@ -692,7 +700,11 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends L
       oldSet.clear()
       oldSet.addAll(newSet)
     }
+  }
 
+  private def setState(to: NodeState.Value) {
+    ZKUtils.set(zk, name + "/nodes/" + myNodeID, to.toString)
+    state.set(to)
   }
 
 }

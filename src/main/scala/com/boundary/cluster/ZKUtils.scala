@@ -34,6 +34,17 @@ object ZKUtils extends Logging {
     }
   }
 
+  def set(zk: ZooKeeperClient, path: String, data: String) {
+    try {
+      zk.set(path, data.getBytes)
+      true
+    } catch {
+      case e: Exception =>
+        log.error(e, "Error setting %s to %s.", path, data)
+    }
+  }
+
+
   def setOrCreate(zk: ZooKeeperClient, path: String, data: String) {
     try {
       zk.set(path, data.getBytes)
