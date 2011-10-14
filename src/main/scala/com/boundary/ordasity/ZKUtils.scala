@@ -1,4 +1,4 @@
-package com.boundary.cluster
+package com.boundary.ordasity
 
 import org.apache.zookeeper.CreateMode
 import com.twitter.zookeeper.ZooKeeperClient

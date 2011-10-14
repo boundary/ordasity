@@ -1,4 +1,4 @@
-package com.boundary.cluster
+package com.boundary.ordasity
 
 import com.codahale.jerkson.Json._
 import com.codahale.logula.Logging

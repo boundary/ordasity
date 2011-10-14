@@ -3,10 +3,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.boundary</groupId>
-    <artifactId>cluster</artifactId>
+    <artifactId>ordasity</artifactId>
     <version>0.1.8</version>
 
-    <name>Cluster</name>
+    <name>Ordasity</name>
     <url>http://www.boundary.com</url>
     <packaging>jar</packaging>
 

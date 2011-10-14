@@ -1,4 +1,4 @@
-package com.boundary.cluster
+package com.boundary.ordasity
 
 import com.yammer.metrics.Meter
 import com.twitter.zookeeper.ZooKeeperClient
