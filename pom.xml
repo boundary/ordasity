@@ -122,6 +122,7 @@
                               <exclude>org.scala-tools.testing:specs_2.8.0</exclude>
                               <exclude>com.twitter:json_2.8.0</exclude>
                               <exclude>junit:junit</exclude>
+                              <exclude>org.scala-lang:scala-library</exclude>
                             </excludes>
                           </artifactSet>
                         </configuration>
