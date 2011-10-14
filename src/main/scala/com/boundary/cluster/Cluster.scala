@@ -2,22 +2,22 @@ package com.boundary.cluster
 
 import com.codahale.jerkson.Json._
 import com.codahale.logula.Logging
-import com.yammer.metrics.{Meter, Instrumented}
 import com.twitter.zookeeper.ZooKeeperClient
+import com.yammer.metrics.{Meter, Instrumented}
 
 import java.nio.charset.Charset
 import overlock.atomicmap.AtomicMap
 import scala.collection.JavaConversions._
 import org.cliffc.high_scale_lib.NonBlockingHashSet
-import java.util.concurrent.atomic.{AtomicReference, AtomicBoolean}
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
-import java.util.{HashSet, ArrayList, LinkedList, TimerTask, Set => JSet, Collection => JCollection}
+import java.util.{HashSet, LinkedList, TimerTask, Set => JSet, Collection => JCollection}
 
 import javax.management.ObjectName
 import java.lang.management.ManagementFactory
 
 trait ClusterMBean {
-  def join() : Cluster
+  def join() : String
   def shutdown()
 }
 
@@ -50,6 +50,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   // Metrics
   val listGauge = metrics.gauge[String]("my_" + config.workUnitShortName) { myWorkUnits.mkString(", ") }
   val countGauge = metrics.gauge[Int]("my_" + config.workUnitShortName + "_count") { myWorkUnits.size }
+  val loadGauge = metrics.gauge[Double]("my_load") { myLoad() }
 
   private val state = new AtomicReference[NodeState.Value](NodeState.Fresh)
 
@@ -58,7 +59,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   /**
    * Joins the cluster, claims work, and begins operation.
    */
-  def join() : Cluster = {
+  def join() : String = {
     state.get() match {
       case NodeState.Fresh    => zk = new ZooKeeperClient(config.hosts, config.zkTimeout, "/", onConnect(_))
       case NodeState.Shutdown => zk = new ZooKeeperClient(config.hosts, config.zkTimeout, "/", onConnect(_))
@@ -66,7 +67,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
       case NodeState.Started  => log.warn("'join' called after started; ignoring.")
     }
 
-    this
+    state.get().toString
   }
 
   /**
@@ -74,6 +75,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    * (default: 60 seconds), prevents it from claiming new work, and exits the cluster.
    */
   def shutdown() {
+    if (state.get() == NodeState.Shutdown) return
+
     if (loadFuture.isDefined) loadFuture.get.cancel(true)
     if (autoRebalanceFuture.isDefined) autoRebalanceFuture.get.cancel(true)
     log.info("Shutdown initiated; beginning drain...")
@@ -251,7 +254,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
         if (myWorkUnits.contains(workUnit) && myNodeID.equals(destinationNode))
           finishHandoff(workUnit)
 
-        // If I'm the node that requested to hand off this work unit to someone else, shut it down after <config> seconds.
+        // If I'm the node that requested to hand off this work unit to another node, shut it down after <config> seconds.
         else if (myWorkUnits.contains(workUnit) && !destinationNode.equals("") && !myNodeID.equals(destinationNode)) {
           log.info("Handoff of %s to %s completed. Shutting down %s in %s seconds.",
             workUnit, handoffResults.get(workUnit).getOrElse("(None)"), workUnit, config.handoffShutdownDelay)
@@ -259,7 +262,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
 
           val runnable = new Runnable {
             def run() {
-              log.info("Shutting down %s following handoff to %s.", workUnit, handoffResults.get(workUnit).getOrElse("(None)"))
+              log.info("Shutting down %s following handoff to %s.",
+                workUnit, handoffResults.get(workUnit).getOrElse("(None)"))
               shutdownWork(workUnit, false, true)
               if (myWorkUnits.size() == 0 && state.get() == NodeState.Draining)
                 shutdown()
@@ -300,7 +304,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   private def claimByLoad() {
     allWorkUnits.synchronized {
 
-      val peggedCheck = new LinkedList[String](allWorkUnits.keys.toSet -- workUnitMap.keys.toSet -- myWorkUnits ++ handoffRequests -- handoffResults.keys)
+      val peggedCheck = new LinkedList[String](allWorkUnits.keys.toSet -- workUnitMap.keys.toSet --
+        myWorkUnits ++ handoffRequests -- handoffResults.keys)
       for (workUnit <- peggedCheck)
         if (isPeggedToMe(workUnit))
           claimWorkPeggedToMe(workUnit)
@@ -310,7 +315,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
       while (myLoad() <= evenDistribution && !unclaimed.isEmpty) {
         val workUnit = unclaimed.poll()
 
-        if (config.useSoftHandoff && handoffRequests.contains(workUnit) && isFairGame(workUnit) && attemptToClaim(workUnit, true))
+        if (config.useSoftHandoff && handoffRequests.contains(workUnit)
+            && isFairGame(workUnit) && attemptToClaim(workUnit, true))
           log.info("Accepted handoff for %s.", workUnit)
         else if (isFairGame(workUnit))
           attemptToClaim(workUnit)
@@ -515,16 +521,6 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   }
 
   /**
-   * Prevents this node from claiming new work by setting its status to "Draining,"
-   * and unclaims all current work over a config-defined period of time.
-   */
-  def drain() {
-    log.info("Initiating drain...")
-    state.set(NodeState.Draining)
-    drainToCount(0)
-  }
-
-  /**
    * Drains excess load on this node down to a fraction distributed across the cluster.
    * The target load is set to (clusterLoad / # nodes).
    */
@@ -569,7 +565,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    * Drains this node's share of the cluster workload down to a specific number
    * of work units over a period of time specified in the configuration with soft handoff if enabled..
    */
-  def drainToCount(targetCount: Int, doShutdown: Boolean = false, useHandoff: Boolean = config.useSoftHandoff) : Unit = {
+  def drainToCount(targetCount: Int, doShutdown: Boolean = false, useHandoff: Boolean = config.useSoftHandoff) {
     val msg = if (useHandoff) " with handoff" else ""
     log.info("Draining %s%s. Target count: %s, Current: %s", config.workUnitName, msg, targetCount, myWorkUnits.size)
     if (targetCount >= myWorkUnits.size)
