@@ -627,9 +627,10 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    * where "load" is determined by the sum of all work unit meters in the cluster.
    */
   private def smartRebalance() {
-    if (myLoad() > evenDistribution()) {
-      log.info("Smart Rebalance triggered. Load: %s. Target: %s", myLoad(), evenDistribution())
-      drainToLoad(evenDistribution().longValue)
+    val target = evenDistribution()
+    if (myLoad() > target) {
+      log.info("Smart Rebalance triggered. Load: %s. Target: %s", myLoad(), target)
+      drainToLoad(target.longValue)
     }
   }
 
@@ -637,16 +638,11 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    * Performs a simple rebalance. Target load is set to (# of work items / node count).
    */
   private def simpleRebalance(data: Option[Array[Byte]] = null) {
-    val nodeCount = nodes.synchronized(nodes.size)
-    val totalUnits = allWorkUnits.size
-    val fairShare = (totalUnits.toDouble / nodeCount).ceil.toInt
+    val target = fairShare()
 
-    if (myWorkUnits.size > fairShare) {
-      log.info("Simple Rebalance triggered. Total work units: %s. Nodes: %s. My load: %s. " +
-        "Target: %s", totalUnits, nodeCount, myWorkUnits.size, fairShare)
-
-      if (config.useSoftHandoff) drainToCount(fairShare)
-      else drainToCount(fairShare)
+    if (myWorkUnits.size > target) {
+      log.info("Simple Rebalance triggered. My Share: %s. Target: %s.",  myWorkUnits.size, target)
+      drainToCount(target)
     }
   }
 
@@ -668,6 +664,10 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    */
   private def evenDistribution() : Double = {
     loadMap.values.sum / activeNodeSize().toDouble
+  }
+
+  private def fairShare() : Int = {
+    (allWorkUnits.size.toDouble / activeNodeSize()).ceil.toInt
   }
 
   private def activeNodeSize() : Int = {
