@@ -20,7 +20,7 @@ Ordasity's simplicity and flexibility allows us to quickly write, deploy, and (m
 
 ### Primary Use Cases
 
-Ordasity is designed to spread persistent or long-lived workloads across several machines. It's a toolkit for building systems which can be described in terms of individual nodes serving a partition or shard of a cluster's total load.
+Ordasity is designed to spread persistent or long-lived workloads across several machines. It's a toolkit for building systems which can be described in terms of individual nodes serving a partition or shard of a cluster's total load. Ordasity is not designed to express a "token range" (though it may be possible to implement one); the focus is on discrete work units.
 
 ---
 
