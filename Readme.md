@@ -8,6 +8,7 @@
 5. Rebalancing
 6. Draining and Handoff
 7. Wrapping Up
+8. [API Documentation](https://github.com/boundary/ordasity/wiki/Ordasity-API-Documentation)
 
 
 ## Building Stateful Clustered Services on the JVM
