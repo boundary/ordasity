@@ -17,16 +17,16 @@ val futures = new HashMap[String, ScheduledFuture[_]]
 
 val config = new ClusterConfig("localhost:2181").
   setAutoRebalance(true).
-  setRebalanceInterval(15).
+  setRebalanceInterval(60 * 5).
   useSmartBalancing(true).
-  setDrainTime(3).
-  setZKTimeout(3).
+  setDrainTime(60).
+  setZKTimeout(3000).
   setUseSoftHandoff(true).
   setNodeId(java.util.UUID.randomUUID().toString)
 
 val listener = new SmartListener {
   def onJoin(client: ZooKeeperClient) = {}
-  def onLeave() = {}
+  def onLeave() = { }
 
   // Do yer thang, mark dat meter.
   def startWork(workUnit: String, meter: Meter) = {

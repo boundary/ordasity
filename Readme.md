@@ -66,6 +66,22 @@ Let's get started with an example. Here's how to build a clustered service in 25
       cluster.join()
     }
 
+**Maven** folks and friends with compatible packaging systems, here's the info for your pom.xml:
+
+        <!-- Dependency -->
+        <dependency>
+            <groupId>com.boundary</groupId>
+            <artifactId>ordasity</artifactId>
+            <version>0.1.8</version>
+        </dependency>
+
+        <!-- Repo -->
+        <repository>
+            <id>boundary-public</id>
+            <name>Boundary Public</name>
+            <url>http://maven.boundary.com/artifactory/repo</url>
+        </repository>
+
 ---
 
 ### In Action at Boundary
