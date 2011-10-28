@@ -9,7 +9,7 @@ class MyService {
     setRebalanceInterval(60).
     useSmartBalancing(true).
     setDrainTime(60).
-    setZKTimeout(3)
+    setZKTimeout(3000)
 
   val cluster = new Cluster("ServiceName", listener, config)
 

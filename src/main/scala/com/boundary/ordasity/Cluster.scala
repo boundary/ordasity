@@ -15,6 +15,7 @@ import java.util.{HashSet, LinkedList, TimerTask, Set => JSet, Collection => JCo
 
 import javax.management.ObjectName
 import java.lang.management.ManagementFactory
+import org.apache.zookeeper.KeeperException.NoNodeException
 
 trait ClusterMBean {
   def join() : String
@@ -26,14 +27,16 @@ object NodeState extends Enumeration {
   val Fresh, Started, Draining, Shutdown = Value
 }
 
+case class NodeInfo(state: String, connectionID: Long)
+
 class Cluster(name: String, listener: Listener, config: ClusterConfig) extends ClusterMBean with Logging with Instrumented {
   val myNodeID = config.nodeId
-
   ManagementFactory.getPlatformMBeanServer.registerMBean(this, new ObjectName(name + ":" + "name=Cluster"))
 
   // Cluster, node, and work unit state
-  private val nodes = AtomicMap.atomicNBHM[String, String]
+  private val nodes = AtomicMap.atomicNBHM[String, NodeInfo]
   private val meters = AtomicMap.atomicNBHM[String, Meter]
+  private val persistentMeterCache = AtomicMap.atomicNBHM[String, Meter]
   private val myWorkUnits = new NonBlockingHashSet[String]
   private val allWorkUnits = AtomicMap.atomicNBHM[String, String]
   private val workUnitMap = AtomicMap.atomicNBHM[String, String]
@@ -113,8 +116,15 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   private def onConnect(client: ZooKeeperClient) {
     zk = client
 
-    if (state.get() != NodeState.Fresh)
-      ensureCleanStartup()
+    if (state.get() != NodeState.Fresh) {
+      if (previousZKSessionStillActive()) {
+        log.info("Zookeeper session re-established before timeout. No need to exit and rejoin cluster.")
+        return
+      } else {
+        log.warn("Rejoined after Zookeeper session timeout. Initiating forced shutdown and clean startup.")
+        ensureCleanStartup()
+      }
+    }
 
     log.info("Connected to Zookeeper (ID: %s).", myNodeID)
     zk.createPath(name + "/nodes")
@@ -144,7 +154,6 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   def ensureCleanStartup() {
     forceShutdown()
     nodes.clear()
-    meters.clear()
     myWorkUnits.clear()
     allWorkUnits.clear()
     workUnitMap.clear()
@@ -178,7 +187,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
         meters.foreach { case(workUnit, meter) =>
           ZKUtils.setOrCreate(zk, name + "/meta/workload/" + workUnit, meter.oneMinuteRate.toString)
         }
-        ZKUtils.setOrCreate(zk, name + "/nodes/" + myNodeID, state.toString)
+        val myInfo = new NodeInfo(state.get.toString, zk.getHandle().getSessionId)
+        ZKUtils.setOrCreate(zk, name + "/nodes/" + myNodeID, generate(myInfo))
 
         if (config.useSmartBalancing)
           log.info("My load: %s", myLoad())
@@ -198,7 +208,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    */
   private def joinCluster() {
     while (true) {
-      if (ZKUtils.createEphemeral(zk, name + "/nodes/" + myNodeID, NodeState.Fresh.toString)) {
+      val myInfo = new NodeInfo(NodeState.Fresh.toString, zk.getHandle().getSessionId)
+      if (ZKUtils.createEphemeral(zk, name + "/nodes/" + myNodeID, generate(myInfo))) {
         return
       } else {
         log.warn("Unable to register with Zookeeper on launch. " +
@@ -216,8 +227,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    * watch "<service-name>/meta/workload" for changes to the cluster's workload.
    */
   private def registerWatchers() {
-    zk.watchChildrenWithData[String](name + "/nodes", nodes, bytesToString(_), { data: String =>
-      log.info("Nodes: %s".format(nodes.mkString(", ")))
+    zk.watchChildrenWithData[NodeInfo](name + "/nodes", nodes, bytesToNodeInfo(_), { data: String =>
+      log.info("Nodes: %s".format(nodes.map(n => n._1).mkString(", ")))
       claimWork()
       verifyIntegrity()
     })
@@ -501,7 +512,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
     myWorkUnits.add(workUnit)
 
     if (listener.isInstanceOf[SmartListener]) {
-      val meter = metrics.meter(workUnit, "processing")
+      val meter = persistentMeterCache.getOrElseUpdate(workUnit, metrics.meter(workUnit, "processing"))
       meters.put(workUnit, meter)
       listener.asInstanceOf[SmartListener].startWork(workUnit, meter)
     } else {
@@ -671,7 +682,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   }
 
   private def activeNodeSize() : Int = {
-    nodes.filter (n => n._2 != null && n._2.equals(NodeState.Started.toString)).size
+    nodes.filter(n => n._2 != null && n._2.state == NodeState.Started.toString).size
   }
 
   /**
@@ -679,6 +690,22 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    */
   private def bytesToString(bytes: Array[Byte]) : String = {
     new String(bytes, Charset.forName("UTF-8"))
+  }
+
+  /**
+   * Utility method for converting an array of bytes to a NodeInfo object.
+   */
+  private def bytesToNodeInfo(bytes: Array[Byte]) : NodeInfo = {
+    val data = new String(bytes, Charset.forName("UTF-8"))
+    try {
+      parse[NodeInfo](data)
+    } catch {
+      case e: Exception =>
+        val parsedState = NodeState.valueOf(data).getOrElse(NodeState.Shutdown)
+        val info = new NodeInfo(parsedState.toString, 0)
+        log.warn("Saw node data in non-JSON format. Interpreting %s as: %s", data, info)
+        info
+    }
   }
 
   /**
@@ -699,8 +726,22 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   }
 
   private def setState(to: NodeState.Value) {
-    ZKUtils.set(zk, name + "/nodes/" + myNodeID, to.toString)
+    val myInfo = new NodeInfo(state.get.toString, zk.getHandle().getSessionId)
+    ZKUtils.set(zk, name + "/nodes/" + myNodeID, generate(myInfo))
     state.set(to)
+  }
+
+  private def previousZKSessionStillActive() : Boolean = {
+    try {
+      val nodeInfo = bytesToNodeInfo(zk.get(name + "/nodes/" + myNodeID))
+      nodeInfo.connectionID == zk.getHandle().getSessionId
+    } catch {
+      case e: NoNodeException =>
+        false
+      case e: Exception =>
+        log.error(e, "Encountered unexpected error in checking ZK session status.")
+        false
+    }
   }
 
 }
