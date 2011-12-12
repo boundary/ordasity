@@ -381,8 +381,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
 
     val claimPostHandoffTask = new TimerTask {
       def run() {
-        if (ZKUtils.createEphemeral(zk,
-          name + "/claimed-" + config.workUnitShortName + "/" + workUnit, myNodeID)) {
+        val path = name + "/claimed-" + config.workUnitShortName + "/" + workUnit
+        if (ZKUtils.createEphemeral(zk, path, myNodeID) || znodeIsMe(path)) {
           ZKUtils.delete(zk, name + "/handoff-result/" + workUnit)
           claimedForHandoff.remove(workUnit)
           log.warn("Handoff of %s to me complete. Peer has shut down work.", workUnit)
@@ -727,6 +727,14 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
       oldSet.clear()
       oldSet.addAll(newSet)
     }
+  }
+
+  /**
+   * Given a path, determines whether or not the value of a ZNode is my node ID.
+  */
+  def znodeIsMe(path: String) : Boolean = {
+    val value = ZKUtils.get(zk, path)
+    (value != null && value == myNodeID)
   }
 
   private def setState(to: NodeState.Value) {

@@ -54,4 +54,16 @@ object ZKUtils extends Logging {
     }
   }
 
+  def get(zk: ZooKeeperClient, path: String) : String = {
+    try {
+      val value = zk.get(path)
+      new String(value)
+    } catch {
+      case e: NoNodeException =>
+        null
+      case e: Exception =>
+        log.error(e, "Error getting data for ZNode at path %s", path)
+        null
+    }
+  }
 }
