@@ -59,6 +59,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   private val workUnitMap = AtomicMap.atomicNBHM[String, String]
   private val handoffRequests = new HashSet[String]
   private val handoffResults = AtomicMap.atomicNBHM[String, String]
+  private val claimedForHandoff = new NonBlockingHashSet[String]
   private val loadMap = AtomicMap.atomicNBHM[String, Double]
   private val workUnitsPeggedToMe = new NonBlockingHashSet[String]
 
@@ -177,6 +178,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
     handoffRequests.clear()
     handoffResults.clear()
     loadMap.clear()
+    claimedForHandoff.clear()
     workUnitsPeggedToMe.clear()
     state.set(NodeState.Fresh)
   }
@@ -399,6 +401,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
         if (ZKUtils.createEphemeral(zk,
           name + "/claimed-" + config.workUnitShortName + "/" + workUnit, myNodeID)) {
           ZKUtils.delete(zk, name + "/handoff-result/" + workUnit)
+          claimedForHandoff.remove(workUnit)
           log.warn("Handoff of %s to me complete. Peer has shut down work.", workUnit)
         } else {
           log.warn("Waiting to establish final ownership of %s following handoff...", workUnit)
@@ -419,6 +422,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
     val created = ZKUtils.createEphemeral(zk, path, myNodeID)
 
     if (created) {
+      if (claimForHandoff) claimedForHandoff.add(workUnit)
       startWork(workUnit)
       true
     } else if (isPeggedToMe(workUnit)) {
@@ -494,7 +498,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
         shutdownWork(workUnit)
 
       } else if (workUnitMap.contains(workUnit) && !workUnitMap.get(workUnit).get.equals(myNodeID) &&
-          !handoffResults.get(workUnit).getOrElse("None").equals(myNodeID)) {
+          !claimedForHandoff.contains(workUnit)) {
         log.info("Discovered I'm serving a work unit that's now " +
           "served by %s. Shutting down %s", workUnitMap.get(workUnit).get, workUnit)
         shutdownWork(workUnit, true, false)
