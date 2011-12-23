@@ -1,17 +1,17 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.boundary</groupId>
-    <artifactId>ordasity</artifactId>
-    <version>0.2.0</version>
+    <artifactId>ordasity-scala_2.9.1</artifactId>
+    <version>0.3.0</version>
 
     <name>Ordasity</name>
     <url>http://www.boundary.com</url>
     <packaging>jar</packaging>
 
     <properties>
-	    <scala.version>2.8.1</scala.version>
+        <scala.version>2.9.1</scala.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -25,21 +25,21 @@
 
         <dependency>
             <groupId>com.codahale</groupId>
-            <artifactId>logula_2.8.1</artifactId>
-            <version>2.1.2</version>
+            <artifactId>logula_${scala.version}</artifactId>
+            <version>2.1.3</version>
         </dependency>
 
         <dependency>
             <groupId>com.boundary</groupId>
-            <artifactId>overlock_2.8.1</artifactId>
-            <version>0.5.1</version>
+            <artifactId>overlock-scala_${scala.version}</artifactId>
+            <version>0.6.0</version>
         </dependency>
 
-    		<dependency>
-    		    <groupId>com.codahale</groupId>
-    		    <artifactId>jerkson_${scala.version}</artifactId>
-    		    <version>0.4.0</version>
-    		</dependency>
+        <dependency>
+            <groupId>com.codahale</groupId>
+            <artifactId>jerkson_${scala.version}</artifactId>
+            <version>0.5.0</version>
+        </dependency>
 
         <dependency>
             <groupId>org.codehaus.jackson</groupId>
@@ -53,11 +53,11 @@
             <version>1.8.4</version>
         </dependency>
 
-    		<dependency>
-    		    <groupId>org.apache.zookeeper</groupId>
-    		    <artifactId>zookeeper</artifactId>
-    		    <version>3.3.2</version>
-    		</dependency>
+        <dependency>
+            <groupId>org.apache.zookeeper</groupId>
+            <artifactId>zookeeper</artifactId>
+            <version>3.3.2</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -85,15 +85,6 @@
                     </args>
                     <charset>UTF-8</charset>
                     <scalaVersion>${scala.version}</scalaVersion>
-        				   <launchers>
-        				      <launcher>
-        				         <id>cluster</id>
-        				         <mainClass>cluster.Cluster</mainClass>
-        				         <args>
-                             <arg>example.conf</arg>
-                         </args>
-        				      </launcher>
-        				   </launchers>
                 </configuration>
             </plugin>
             <plugin>
@@ -117,14 +108,14 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                          <artifactSet>
-                            <excludes>
-                              <exclude>org.scala-tools.testing:specs_2.8.0</exclude>
-                              <exclude>com.twitter:json_2.8.0</exclude>
-                              <exclude>junit:junit</exclude>
-                              <exclude>org.scala-lang:scala-library</exclude>
-                            </excludes>
-                          </artifactSet>
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>org.scala-tools.testing:specs_2.8.0</exclude>
+                                    <exclude>com.twitter:json_2.8.0</exclude>
+                                    <exclude>junit:junit</exclude>
+                                    <exclude>org.scala-lang:scala-library</exclude>
+                                </excludes>
+                            </artifactSet>
                         </configuration>
                     </execution>
                 </executions>
@@ -147,112 +138,50 @@
         </plugins>
     </build>
 
-  <repositories>
-	 <repository>
-	   <id>central</id> 
-	   <name>Maven repository</name> 
-	   <url>http://repo1.maven.org/maven2</url> 
-	 </repository>
-    <repository>
-      <id>scala-tools.org</id>
-      <name>Scala-tools Maven2 Repository</name>
-      <url>http://scala-tools.org/repo-releases</url>
-    </repository>
-    <repository>
-      <id>jetlang</id>
-      <name>Jetlang</name>
-      <url>http://jetlang.googlecode.com/svn/repo/</url>
-    </repository>
-  	<repository>
-  	<id>oauthnet</id>
-  	<name>oauth.net</name>
-  	<url>http://oauth.googlecode.com/svn/code/maven/</url>
-  	</repository>
-  	<repository>
-  	<id>ibiblio</id>
-  	<name>ibiblio</name>
-  	<url>http://mirrors.ibiblio.org/pub/mirrors/maven2/</url>
-  	</repository>
-  	<repository>
-  	<id>lagnet</id>
-  	<name>lag.net</name>
-  	<url>http://www.lag.net/repo/</url>
-  	</repository>
-  	<repository>
-  	<id>powermockapi</id>
-  	<name>powermock-api</name>
-  	<url>http://powermock.googlecode.com/svn/repo/</url>
-  	</repository>
-  	<repository>
-  	<id>scalatoolsorg</id>
-  	<name>scala-tools.org</name>
-  	<url>http://scala-tools.org/repo-releases/</url>
-  	</repository>
-  	<repository>
-  	<id>nest</id>
-  	<name>nest</name>
-  	<url>http://www.lag.net/nest/</url>
-  	</repository>
-  	<repository>
-  	<id>atlassian</id>
-  	<name>atlassian</name>
-  	<url>https://m2proxy.atlassian.com/repository/public/</url>
-  	</repository>
-  	<repository>
-  	<id>apache</id>
-  	<name>apache</name>
-  	<url>
-  	http://people.apache.org/repo/m2-ibiblio-rsync-repository/
-  	</url>
-  	</repository>
-  	<repository>
-  	<id>testingscalatoolsorg</id>
-  	<name>testing.scala-tools.org</name>
-  	<url>http://scala-tools.org/repo-releases/testing/</url>
-  	</repository>
-  	<repository>
-  	<id>twittercom</id>
-  	<name>twitter.com</name>
-  	<url>http://www.lag.net/nest/</url>
-  	</repository>
-  	<repository>
-  	<id>downloadjavanet</id>
-  	<name>download.java.net</name>
-  	<url>http://download.java.net/maven/2/</url>
-  	</repository>
-  	<repository>
-  	<id>reucon</id>
-  	<name>reucon</name>
-  	<url>http://maven.reucon.com/public/</url>
-  	</repository>
-  	<repository>
-  	<id>ScalaToolsMaven2Repository</id>
-  	<name>Scala-Tools Maven2 Repository</name>
-  	<url>http://scala-tools.org/repo-releases/</url>
-  	</repository>
-    <repository>
-      <id>coda</id>
-      <name>Coda</name>
-      <url>http://repo.codahale.com/</url>
-    </repository>
-    <repository>
-      <id>boundary-public</id>
-      <name>Boundary Public</name>
-      <url>http://maven.boundary.com/artifactory/repo</url>
-    </repository>
-    <repository>
-      <id>boundary-private</id>
-      <name>Boundary Private</name>
-      <url>http://maven.eng.boundary.com/artifactory/repo</url>
-    </repository>
-  </repositories>
+    <repositories>
+        <repository>
+            <id>central</id> 
+            <name>Maven repository</name> 
+            <url>http://repo1.maven.org/maven2</url> 
+        </repository>
+        <repository>
+            <id>scala-tools.org</id>
+            <name>Scala-tools Maven2 Repository</name>
+            <url>http://scala-tools.org/repo-releases</url>
+        </repository>
+        <repository>
+            <id>apache</id>
+            <name>apache</name>
+            <url>http://people.apache.org/repo/m2-ibiblio-rsync-repository/</url>
+        </repository>
+        <repository>
+            <id>testingscalatoolsorg</id>
+            <name>testing.scala-tools.org</name>
+            <url>http://scala-tools.org/repo-releases/testing/</url>
+        </repository>
+        <repository>
+            <id>downloadjavanet</id>
+            <name>download.java.net</name>
+            <url>http://download.java.net/maven/2/</url>
+        </repository>
+        <repository>
+            <id>coda</id>
+            <name>Coda</name>
+            <url>http://repo.codahale.com/</url>
+        </repository>
+        <repository>
+            <id>boundary-public</id>
+            <name>Boundary Public</name>
+            <url>http://maven.boundary.com/artifactory/repo</url>
+        </repository>
+    </repositories>
 
-  <pluginRepositories>
-    <pluginRepository>
-      <id>scala-tools.org</id>
-      <name>Scala-tools Maven2 Repository</name>
-      <url>http://scala-tools.org/repo-releases</url>
-    </pluginRepository>
-  </pluginRepositories>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>scala-tools.org</id>
+            <name>Scala-tools Maven2 Repository</name>
+            <url>http://scala-tools.org/repo-releases</url>
+        </pluginRepository>
+    </pluginRepositories>
 
 </project>

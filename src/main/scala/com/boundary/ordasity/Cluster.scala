@@ -1,3 +1,19 @@
+//
+// Copyright 2011, Boundary
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
 package com.boundary.ordasity
 
 import com.codahale.jerkson.Json._
@@ -25,12 +41,22 @@ trait ClusterMBean {
 object NodeState extends Enumeration {
   type NodeState = Value
   val Fresh, Started, Draining, Shutdown = Value
+
+  def valueOf(s: String) = {
+    withName(s) match {
+      case e:Enumeration =>
+        Some(e)
+      case _ =>
+        None
+    }
+  }
 }
 
 case class NodeInfo(state: String, connectionID: Long)
 
 class Cluster(name: String, listener: Listener, config: ClusterConfig) extends ClusterMBean with Logging with Instrumented {
   val myNodeID = config.nodeId
+
   ManagementFactory.getPlatformMBeanServer.registerMBean(this, new ObjectName(name + ":" + "name=Cluster"))
 
   // Cluster, node, and work unit state
@@ -481,7 +507,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
         shutdownWork(workUnit)
 
       } else if (workUnitMap.contains(workUnit) && !workUnitMap.get(workUnit).get.equals(myNodeID) &&
-         !claimedForHandoff.contains(workUnit)) {
+          !claimedForHandoff.contains(workUnit)) {
         log.info("Discovered I'm serving a work unit that's now " +
           "served by %s. Shutting down %s", workUnitMap.get(workUnit).get, workUnit)
         shutdownWork(workUnit, true, false)
@@ -720,7 +746,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   }
 
   /**
-   * Utility method for swapping out the contents of a set while holding its lock.
+   * Utility method for swapping out the contents of a set whle holding its lock.
    */
   private def refreshSet(oldSet: JSet[String], newSet: JCollection[String]) {
     oldSet.synchronized {
@@ -738,7 +764,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   }
 
   private def setState(to: NodeState.Value) {
-    val myInfo = new NodeInfo(state.get.toString, zk.getHandle().getSessionId)
+    val myInfo = new NodeInfo(to.toString, zk.getHandle().getSessionId)
     ZKUtils.set(zk, name + "/nodes/" + myNodeID, generate(myInfo))
     state.set(to)
   }
