@@ -4,7 +4,7 @@
 
     <groupId>com.boundary</groupId>
     <artifactId>ordasity-scala_2.9.1</artifactId>
-    <version>0.3.0</version>
+    <version>0.3.1</version>
 
     <name>Ordasity</name>
     <url>http://www.boundary.com</url>
@@ -18,9 +18,9 @@
     <dependencies>
 
         <dependency>
-            <groupId>com.twitter</groupId>
-            <artifactId>zookeeper-client</artifactId>
-            <version>2.0.0-p01</version>
+            <groupId>com.twitter.common</groupId>
+            <artifactId>zookeeper</artifactId>
+            <version>0.1</version>
         </dependency>
 
         <dependency>

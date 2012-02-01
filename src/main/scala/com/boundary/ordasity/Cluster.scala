@@ -18,20 +18,25 @@ package com.boundary.ordasity
 
 import com.codahale.jerkson.Json._
 import com.codahale.logula.Logging
-import com.twitter.zookeeper.ZooKeeperClient
 import com.yammer.metrics.{Meter, Instrumented}
 
 import java.nio.charset.Charset
 import overlock.atomicmap.AtomicMap
 import scala.collection.JavaConversions._
 import org.cliffc.high_scale_lib.NonBlockingHashSet
-import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
-import java.util.{HashSet, LinkedList, TimerTask, Set => JSet, Collection => JCollection}
 
 import javax.management.ObjectName
 import java.lang.management.ManagementFactory
 import org.apache.zookeeper.KeeperException.NoNodeException
+import java.net.InetSocketAddress
+import org.apache.zookeeper.ZooDefs.Ids
+import com.twitter.common.zookeeper.{ZooKeeperMap, ZooKeeperUtils, ZooKeeperClient}
+import java.lang.String
+import org.apache.zookeeper.{WatchedEvent, Watcher}
+import com.twitter.common.quantity.{Time, Amount}
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
+import java.util.{HashMap, Map, LinkedList, TimerTask}
 
 trait ClusterMBean {
   def join() : String
@@ -60,17 +65,18 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   ManagementFactory.getPlatformMBeanServer.registerMBean(this, new ObjectName(name + ":" + "name=Cluster"))
 
   // Cluster, node, and work unit state
-  private val nodes = AtomicMap.atomicNBHM[String, NodeInfo]
+  private var nodes : Map[String, NodeInfo] = null
   private val meters = AtomicMap.atomicNBHM[String, Meter]
   private val persistentMeterCache = AtomicMap.atomicNBHM[String, Meter]
   private val myWorkUnits = new NonBlockingHashSet[String]
-  private val allWorkUnits = AtomicMap.atomicNBHM[String, String]
-  private val workUnitMap = AtomicMap.atomicNBHM[String, String]
-  private val handoffRequests = new HashSet[String]
-  private val handoffResults = AtomicMap.atomicNBHM[String, String]
+  private var allWorkUnits : Map[String, String] = null
+  private var workUnitMap : Map[String, String] = null
+  private var handoffRequests : Map[String, String] = null
+  private var handoffResults : Map[String, String] = null
   private val claimedForHandoff = new NonBlockingHashSet[String]
-  private val loadMap = AtomicMap.atomicNBHM[String, Double]
+  private var loadMap : Map[String, Double] = null
   private val workUnitsPeggedToMe = new NonBlockingHashSet[String]
+  private val watchesRegistered = new AtomicBoolean(false)
 
   // Scheduled executions
   private val pool = new ScheduledThreadPoolExecutor(1)
@@ -91,13 +97,31 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    */
   def join() : String = {
     state.get() match {
-      case NodeState.Fresh    => zk = new ZooKeeperClient(config.hosts, config.zkTimeout, "/", onConnect(_))
-      case NodeState.Shutdown => zk = new ZooKeeperClient(config.hosts, config.zkTimeout, "/", onConnect(_))
+      case NodeState.Fresh    => connect()
+      case NodeState.Shutdown => connect()
       case NodeState.Draining => log.warn("'join' called while draining; ignoring.")
       case NodeState.Started  => log.warn("'join' called after started; ignoring.")
     }
 
     state.get().toString
+  }
+
+  /**
+   * Directs the ZooKeeperClient to connect to the ZooKeeper ensemble and wait for
+   * the connection to be established before continuing.
+   */
+  private def connect() {
+    val hosts = config.hosts.split(",").map { server =>
+      val host = server.split(":")(0)
+      val port = Integer.parseInt(server.split(":")(1))
+      new InetSocketAddress(host, port)
+    }.toList
+
+    log.info("Connecting to hosts: %s", hosts.toString)
+    zk = new ZooKeeperClient(Amount.of(config.zkTimeout, Time.MILLISECONDS), hosts)
+    zk.get()
+    log.info("Connected to ZooKeeper with hosts: %s", hosts.toString)
+    onConnect()
   }
 
   /**
@@ -140,9 +164,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   /**
    * Primary callback which is triggered upon successful Zookeeper connection.
    */
-  private def onConnect(client: ZooKeeperClient) {
-    zk = client
-
+  private def onConnect() {
     if (state.get() != NodeState.Fresh) {
       if (previousZKSessionStillActive()) {
         log.info("Zookeeper session re-established before timeout. No need to exit and rejoin cluster.")
@@ -154,18 +176,20 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
     }
 
     log.info("Connected to Zookeeper (ID: %s).", myNodeID)
-    zk.createPath(name + "/nodes")
-    zk.createPath(config.workUnitName)
-    zk.createPath(name + "/meta/rebalance")
-    zk.createPath(name + "/meta/workload")
-    zk.createPath(name + "/claimed-" + config.workUnitShortName)
-    zk.createPath(name + "/handoff-requests")
-    zk.createPath(name + "/handoff-result")
+    ZooKeeperUtils.ensurePath(zk, Ids.OPEN_ACL_UNSAFE, "/%s/nodes".format(name))
+    ZooKeeperUtils.ensurePath(zk, Ids.OPEN_ACL_UNSAFE, "/%s".format(config.workUnitName))
+    ZooKeeperUtils.ensurePath(zk, Ids.OPEN_ACL_UNSAFE, "/%s/meta/rebalance".format(name))
+    ZooKeeperUtils.ensurePath(zk, Ids.OPEN_ACL_UNSAFE, "/%s/meta/workload".format(name))
+    ZooKeeperUtils.ensurePath(zk, Ids.OPEN_ACL_UNSAFE, "/%s/claimed-%s".format(name, config.workUnitShortName))
+    ZooKeeperUtils.ensurePath(zk, Ids.OPEN_ACL_UNSAFE, "/%s/handoff-requests".format(name))
+    ZooKeeperUtils.ensurePath(zk, Ids.OPEN_ACL_UNSAFE, "/%s/handoff-result".format(name))
     joinCluster()
 
     listener.onJoin(zk)
 
+    watchesRegistered.set(false)
     registerWatchers()
+    watchesRegistered.set(true)
 
     setState(NodeState.Started)
     claimWork()
@@ -180,13 +204,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
 
   def ensureCleanStartup() {
     forceShutdown()
-    nodes.clear()
     myWorkUnits.clear()
-    allWorkUnits.clear()
-    workUnitMap.clear()
-    handoffRequests.clear()
-    handoffResults.clear()
-    loadMap.clear()
     claimedForHandoff.clear()
     workUnitsPeggedToMe.clear()
     state.set(NodeState.Fresh)
@@ -213,10 +231,10 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
     val sendLoadToZookeeper = new Runnable {
       def run() {
         meters.foreach { case(workUnit, meter) =>
-          ZKUtils.setOrCreate(zk, name + "/meta/workload/" + workUnit, meter.oneMinuteRate.toString)
+          ZKUtils.setOrCreate(zk, "/" + name + "/meta/workload/" + workUnit, meter.oneMinuteRate.toString)
         }
-        val myInfo = new NodeInfo(state.get.toString, zk.getHandle().getSessionId)
-        ZKUtils.setOrCreate(zk, name + "/nodes/" + myNodeID, generate(myInfo))
+        val myInfo = new NodeInfo(state.get.toString, zk.get().getSessionId)
+        ZKUtils.setOrCreate(zk, "/" + name + "/nodes/" + myNodeID, generate(myInfo))
 
         if (config.useSmartBalancing)
           log.info("My load: %s", myLoad())
@@ -236,8 +254,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    */
   private def joinCluster() {
     while (true) {
-      val myInfo = new NodeInfo(NodeState.Fresh.toString, zk.getHandle().getSessionId)
-      if (ZKUtils.createEphemeral(zk, name + "/nodes/" + myNodeID, generate(myInfo))) {
+      val myInfo = new NodeInfo(NodeState.Fresh.toString, zk.get().getSessionId)
+      if (ZKUtils.createEphemeral(zk, "/" + name + "/nodes/" + myNodeID, generate(myInfo))) {
         return
       } else {
         log.warn("Unable to register with Zookeeper on launch. " +
@@ -255,71 +273,107 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    * watch "<service-name>/meta/workload" for changes to the cluster's workload.
    */
   private def registerWatchers() {
-    zk.watchChildrenWithData[NodeInfo](name + "/nodes", nodes, bytesToNodeInfo(_), { data: String =>
-      log.info("Nodes: %s".format(nodes.map(n => n._1).mkString(", ")))
-      claimWork()
-      verifyIntegrity()
-    })
+    class ClusterNodesChangedListener extends ZooKeeperMap.ZKMapListener[NodeInfo] {
+      def nodeChanged(nodeName: String, data: NodeInfo) {
+        if (!watchesRegistered.get()) return
 
-    zk.watchChildrenWithData[String](config.workUnitName,
-        allWorkUnits, bytesToString(_), { data: String =>
-      log.debug(config.workUnitName.capitalize + " IDs: %s".format(allWorkUnits.keys.mkString(", ")))
-      claimWork()
-      verifyIntegrity()
-    })
+        log.info("Nodes: %s".format(nodes.map(n => n._1).mkString(", ")))
+        run()
+      }
 
-    zk.watchChildrenWithData[String](name + "/claimed-" + config.workUnitShortName,
-        workUnitMap, bytesToString(_), { data: String =>
-      log.debug(config.workUnitName.capitalize + " / Node Mapping changed: %s", workUnitMap)
-      claimWork()
-      verifyIntegrity()
-    })
-
-    if (config.useSoftHandoff) {
-      // Watch handoff requests.
-      zk.watchChildren(name + "/handoff-requests", { (newWorkUnits: Seq[String]) =>
-        refreshSet(handoffRequests, newWorkUnits)
-        log.debug("Handoff requests changed: %s".format(handoffRequests.mkString(", ")))
-        verifyIntegrity()
+      def nodeRemoved(nodeName: String) {
+        if (!watchesRegistered.get()) return
+        log.info("%s has left the cluster.", nodeName)
+        run()
+      }
+    
+      def run() {
         claimWork()
-      })
+        verifyIntegrity()
+      }
 
-      // Watch handoff results.
-      zk.watchChildrenWithData[String](name + "/handoff-result",
-        handoffResults, bytesToString(_), { workUnit: String =>
+    }
 
+    class VerifyIntegrityListener extends ZooKeeperMap.ZKMapListener[String] {
+      def nodeChanged(nodeName: String, data: String) {
+        if (!watchesRegistered.get()) return
+        log.debug(config.workUnitName.capitalize + " IDs: %s".format(allWorkUnits.keys.mkString(", ")))
+        run()
+      }
+
+      def nodeRemoved(nodeName: String) {
+        if (!watchesRegistered.get()) return
+        run()
+      }
+
+      def run() {
+        claimWork()
+        verifyIntegrity()
+      }
+    }
+
+    class HandoffResultsListener extends ZooKeeperMap.ZKMapListener[String] {
+      def nodeChanged(nodeName: String, data: String) = run(nodeName)
+      def nodeRemoved(nodeName: String) = run(nodeName)
+
+      def run(workUnit: String) {
+        if (!watchesRegistered.get()) return
         // If I am the node which accepted this handoff, finish the job.
-        val destinationNode = handoffResults.get(workUnit).getOrElse("")
+        val destinationNode = getOrElse(handoffResults, workUnit, "")
         if (myWorkUnits.contains(workUnit) && myNodeID.equals(destinationNode))
           finishHandoff(workUnit)
 
         // If I'm the node that requested to hand off this work unit to another node, shut it down after <config> seconds.
         else if (myWorkUnits.contains(workUnit) && !destinationNode.equals("") && !myNodeID.equals(destinationNode)) {
           log.info("Handoff of %s to %s completed. Shutting down %s in %s seconds.",
-            workUnit, handoffResults.get(workUnit).getOrElse("(None)"), workUnit, config.handoffShutdownDelay)
-          ZKUtils.delete(zk, name + "/handoff-requests/" + workUnit)
+            workUnit, getOrElse(handoffResults, workUnit, "(None)"), workUnit, config.handoffShutdownDelay)
+          ZKUtils.delete(zk, "/" + name + "/handoff-requests/" + workUnit)
 
           val runnable = new Runnable {
             def run() {
               log.info("Shutting down %s following handoff to %s.",
-                workUnit, handoffResults.get(workUnit).getOrElse("(None)"))
+                workUnit, getOrElse(handoffResults, workUnit, "(None)"))
               shutdownWork(workUnit, false, true)
               if (myWorkUnits.size() == 0 && state.get() == NodeState.Draining)
                 shutdown()
             }
-          };
+          }
 
           pool.schedule(runnable, config.handoffShutdownDelay, TimeUnit.SECONDS).asInstanceOf[Unit]
         }
-      })
+      }
+    }
+
+    nodes = ZooKeeperMap.create(zk, "/%s/nodes".format(name),
+      new NodeInfoDeserializer(), new ClusterNodesChangedListener())
+
+    allWorkUnits = ZooKeeperMap.create(zk, "/%s".format(config.workUnitName),
+      new StringDeserializer(), new VerifyIntegrityListener())
+
+    workUnitMap = ZooKeeperMap.create(zk, "/%s/claimed-%s".format(name, config.workUnitShortName),
+      new StringDeserializer(), new VerifyIntegrityListener())
+
+    if (config.useSoftHandoff) {
+      // Watch handoff requests and results.
+      handoffRequests = ZooKeeperMap.create(zk, "/%s/handoff-requests".format(name),
+        new StringDeserializer(), new VerifyIntegrityListener())
+
+      handoffResults = ZooKeeperMap.create(zk, "/%s/handoff-result".format(name),
+        new StringDeserializer(), new HandoffResultsListener())
+    } else {
+      handoffRequests = new HashMap[String, String]
+      handoffResults = new HashMap[String, String]
     }
 
     // Watch for rebalance requests.
-    zk.watchNode(name + "/meta/rebalance", rebalance(_))
+    // TODO: Make a persistent watch.
+    zk.get().getData("/%s/meta/rebalance".format(name), new Watcher(){
+      def process(p1: WatchedEvent) { rebalance() }
+    }, null)
 
     // If smart balancing is enabled, watch for changes to the cluster's workload.
     if (config.useSmartBalancing && listener.isInstanceOf[SmartListener])
-      zk.watchChildrenWithData[Double](name + "/meta/workload", loadMap, bytesToDouble(_))
+      loadMap = ZooKeeperMap.create[Double](zk, "/%s/meta/workload".format(name), new DoubleDeserializer)
   }
 
   /**
@@ -344,7 +398,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
     allWorkUnits.synchronized {
 
       val peggedCheck = new LinkedList[String](allWorkUnits.keys.toSet -- workUnitMap.keys.toSet --
-        myWorkUnits ++ handoffRequests -- handoffResults.keys)
+        myWorkUnits ++ handoffRequests.keySet -- handoffResults.keys)
       for (workUnit <- peggedCheck)
         if (isPeggedToMe(workUnit))
           claimWorkPeggedToMe(workUnit)
@@ -383,7 +437,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
       log.debug("%s Nodes: %s. %s: %s.", name, nodeCount, config.workUnitName.capitalize, allWorkUnits.size)
       log.debug("Claiming %s pegged to me, and up to %s more.", config.workUnitName, maxToClaim)
 
-      val unclaimed = allWorkUnits.keys.toSet -- workUnitMap.keys.toSet ++ handoffRequests -- handoffResults.keys
+      val unclaimed = allWorkUnits.keys.toSet -- workUnitMap.keys.toSet ++ handoffRequests.keySet -- handoffResults.keys
       log.debug("Handoff requests: %s, Handoff Results: %s, Unclaimed: %s",
         handoffRequests.mkString(", "), handoffResults.mkString(", "), unclaimed.mkString(", "))
 
@@ -403,13 +457,13 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
 
   def finishHandoff(workUnit: String) {
     log.info("Handoff of %s to me acknowledged. Deleting claim ZNode for %s and waiting for " +
-      "%s to shutdown work.", workUnit, workUnit, workUnitMap.get(workUnit).getOrElse("(None)"))
+      "%s to shutdown work.", workUnit, workUnit, getOrElse(workUnitMap, workUnit, "(None)"))
 
     val claimPostHandoffTask = new TimerTask {
       def run() {
-        val path = name + "/claimed-" + config.workUnitShortName + "/" + workUnit
+        val path = "/" + name + "/claimed-" + config.workUnitShortName + "/" + workUnit
         if (ZKUtils.createEphemeral(zk, path, myNodeID) || znodeIsMe(path)) {
-          ZKUtils.delete(zk, name + "/handoff-result/" + workUnit)
+          ZKUtils.delete(zk, "/" + name + "/handoff-result/" + workUnit)
           claimedForHandoff.remove(workUnit)
           log.warn("Handoff of %s to me complete. Peer has shut down work.", workUnit)
         } else {
@@ -424,8 +478,8 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
 
   def attemptToClaim(workUnit: String, claimForHandoff: Boolean = false) : Boolean = {
     val path = {
-      if (claimForHandoff) name + "/handoff-result/" + workUnit
-      else name + "/claimed-" + config.workUnitShortName + "/" + workUnit
+      if (claimForHandoff) "/" + name + "/handoff-result/" + workUnit
+      else "/" + name + "/claimed-" + config.workUnitShortName + "/" + workUnit
     }
 
     val created = ZKUtils.createEphemeral(zk, path, myNodeID)
@@ -448,7 +502,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    */
   def requestHandoff(workUnit: String) {
     log.info("Requesting handoff for %s.", workUnit)
-    ZKUtils.createEphemeral(zk, name + "/handoff-requests/" + workUnit)
+    ZKUtils.createEphemeral(zk, "/" + name + "/handoff-requests/" + workUnit)
   }
 
 
@@ -459,29 +513,28 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    */
   private def isFairGame(workUnit: String) : Boolean = {
     val workUnitData = allWorkUnits.get(workUnit)
-    if (workUnitData.isEmpty || workUnitData.get.equals(""))
+    if (workUnitData == null || workUnitData.equals(""))
       return true
 
-    val mapping = parse[Map[String, String]](workUnitData.get)
+    val mapping = parse[Map[String, String]](workUnitData)
     val pegged = mapping.get(name)
-    if (pegged.isDefined) log.debug("Pegged status for %s: %s.", workUnit, pegged.get)
-    (pegged.isEmpty || (pegged.isDefined && pegged.get.equals(myNodeID)) ||
-      (pegged.isDefined && pegged.get.equals("")))
+    if (pegged != null) log.debug("Pegged status for %s: %s.", workUnit, pegged)
+    (pegged == null || pegged.equals(myNodeID) || pegged.equals(""))
   }
 
   /**
    * Determines whether or not a given work unit is pegged to this instance.
    */
   private def isPeggedToMe(workUnitId: String) : Boolean = {
-    val zkWorkData = allWorkUnits.get(workUnitId).get
-    if (zkWorkData.isEmpty) {
+    val zkWorkData = allWorkUnits.get(workUnitId)
+    if (zkWorkData == null || zkWorkData == "") {
       workUnitsPeggedToMe.remove(workUnitId)
       return false
     }
 
     val mapping = parse[Map[String, String]](zkWorkData)
     val pegged = mapping.get(name)
-    val isPegged = (pegged.isDefined && (pegged.get.equals(myNodeID)))
+    val isPegged = (pegged != null && (pegged.equals(myNodeID)))
 
     if (isPegged) workUnitsPeggedToMe.add(workUnitId)
     else workUnitsPeggedToMe.remove(workUnitId)
@@ -506,10 +559,10 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
           "pegged to someone else. Shutting down %s", workUnit)
         shutdownWork(workUnit)
 
-      } else if (workUnitMap.contains(workUnit) && !workUnitMap.get(workUnit).get.equals(myNodeID) &&
+      } else if (workUnitMap.contains(workUnit) && !workUnitMap.get(workUnit).equals(myNodeID) &&
           !claimedForHandoff.contains(workUnit)) {
         log.info("Discovered I'm serving a work unit that's now " +
-          "served by %s. Shutting down %s", workUnitMap.get(workUnit).get, workUnit)
+          "served by %s. Shutting down %s", workUnitMap.get(workUnit), workUnit)
         shutdownWork(workUnit, true, false)
       }
     }
@@ -522,7 +575,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   private def claimWorkPeggedToMe(workUnit: String) {
     while (true) {
       if (ZKUtils.createEphemeral(zk,
-          name + "/claimed-" + config.workUnitShortName + "/" + workUnit, myNodeID)) {
+          "/" + name + "/claimed-" + config.workUnitShortName + "/" + workUnit, myNodeID)) {
         startWork(workUnit)
         return
       } else {
@@ -556,7 +609,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   private def shutdownWork(workUnit: String, doLog: Boolean = true, deleteZNode: Boolean = true) {
     if (doLog) log.info("Shutting down %s: %s...", config.workUnitName, workUnit)
     myWorkUnits.remove(workUnit)
-    if (deleteZNode) ZKUtils.delete(zk, name + "/claimed-" + config.workUnitShortName + "/" + workUnit)
+    if (deleteZNode) ZKUtils.delete(zk, "/" + name + "/claimed-" + config.workUnitShortName + "/" + workUnit)
     meters.remove(workUnit)
     listener.shutdownWork(workUnit)
   }
@@ -572,7 +625,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
 
     while (currentLoad > targetLoad && !eligibleToDrop.isEmpty) {
       val workUnit = eligibleToDrop.poll()
-      val workUnitLoad : Double = loadMap.get(workUnit).getOrElse(0)
+      var workUnitLoad : Double = getOrElse(loadMap, workUnit, 0)
 
       if (workUnitLoad > 0 && currentLoad - workUnitLoad > targetLoad) {
         drainList.add(workUnit)
@@ -695,7 +748,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
     var load = 0d
     log.debug(loadMap.toString)
     log.debug(myWorkUnits.toString)
-    myWorkUnits.foreach(u => load += loadMap.get(u).getOrElse(0d))
+    myWorkUnits.foreach(u => load += getOrElse(loadMap, u, 0))
     load
   }
 
@@ -704,7 +757,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
    * the cluster. This is determined by the total load divided by the number of alive nodes.
    */
   private def evenDistribution() : Double = {
-    loadMap.values.sum / activeNodeSize().toDouble
+    loadMap.values.sum / activeNodeSize().doubleValue()
   }
 
   private def fairShare() : Int = {
@@ -725,34 +778,27 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   /**
    * Utility method for converting an array of bytes to a NodeInfo object.
    */
-  private def bytesToNodeInfo(bytes: Array[Byte]) : NodeInfo = {
-    val data = new String(bytes, Charset.forName("UTF-8"))
-    try {
-      parse[NodeInfo](data)
-    } catch {
-      case e: Exception =>
-        val parsedState = NodeState.valueOf(data).getOrElse(NodeState.Shutdown)
-        val info = new NodeInfo(parsedState.toString, 0)
-        log.warn("Saw node data in non-JSON format. Interpreting %s as: %s", data, info)
-        info
+  class NodeInfoDeserializer extends com.google.common.base.Function[Array[Byte], NodeInfo] {
+    def apply(bytes: Array[Byte]) : NodeInfo = {
+      val data = new String(bytes, Charset.forName("UTF-8"))
+      try {
+        parse[NodeInfo](data)
+      } catch {
+        case e: Exception =>
+          val parsedState = NodeState.valueOf(data).getOrElse(NodeState.Shutdown)
+          val info = new NodeInfo(parsedState.toString, 0)
+          log.warn("Saw node data in non-JSON format. Interpreting %s as: %s", data, info)
+          info
+      }
     }
   }
 
-  /**
-   * Utility method for converting an array of bytes to a double.
-   */
-  private def bytesToDouble(bytes: Array[Byte]) : Double = {
-    bytesToString(bytes).toDouble
+  class StringDeserializer extends com.google.common.base.Function[Array[Byte], String] {
+    def apply(a: Array[Byte]) : String = new String(a)
   }
 
-  /**
-   * Utility method for swapping out the contents of a set whle holding its lock.
-   */
-  private def refreshSet(oldSet: JSet[String], newSet: JCollection[String]) {
-    oldSet.synchronized {
-      oldSet.clear()
-      oldSet.addAll(newSet)
-    }
+  class DoubleDeserializer extends com.google.common.base.Function[Array[Byte], Double] {
+    def apply(a: Array[Byte]) : Double = new String(a).toDouble
   }
 
   /**
@@ -764,15 +810,16 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
   }
 
   private def setState(to: NodeState.Value) {
-    val myInfo = new NodeInfo(to.toString, zk.getHandle().getSessionId)
-    ZKUtils.set(zk, name + "/nodes/" + myNodeID, generate(myInfo))
+    val myInfo = new NodeInfo(to.toString, zk.get().getSessionId)
+    ZKUtils.set(zk, "/" + name + "/nodes/" + myNodeID, generate(myInfo))
     state.set(to)
   }
 
   private def previousZKSessionStillActive() : Boolean = {
     try {
-      val nodeInfo = bytesToNodeInfo(zk.get(name + "/nodes/" + myNodeID))
-      nodeInfo.connectionID == zk.getHandle().getSessionId
+      val data = zk.get().getData("/%s/nodes/%s".format(name, myNodeID), false, null)
+      val nodeInfo = new NodeInfoDeserializer().apply(data)
+      nodeInfo.connectionID == zk.get().getSessionId
     } catch {
       case e: NoNodeException =>
         false
@@ -781,5 +828,18 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
         false
     }
   }
+
+  private def getOrElse(map: Map[String, String], key: String, orElse: String) : String = {
+    val result = map.get(key)
+    if (result == null) orElse
+    else result
+  }
+
+  private def getOrElse(map: Map[String, Double], key: String, orElse: Double) : Double = {
+    val result = map.get(key)
+    if (result == null) orElse
+    else result
+  }
+
 
 }

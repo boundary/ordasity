@@ -1,7 +1,7 @@
 package com.boundary.ordasity
 
 import com.yammer.metrics.Meter
-import com.twitter.zookeeper.ZooKeeperClient
+import com.twitter.common.zookeeper.ZooKeeperClient
 
 trait Listener {
   def onJoin(client: ZooKeeperClient)
