@@ -52,12 +52,6 @@
             <artifactId>jackson-mapper-asl</artifactId>
             <version>1.8.4</version>
         </dependency>
-
-        <dependency>
-            <groupId>org.apache.zookeeper</groupId>
-            <artifactId>zookeeper</artifactId>
-            <version>3.3.2</version>
-        </dependency>
     </dependencies>
 
     <build>
