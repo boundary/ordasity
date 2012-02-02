@@ -722,7 +722,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
       parse[NodeInfo](data)
     } catch {
       case e: Exception =>
-        val parsedState = NodeState.valueOf(data).getOrElse(NodeState.Shutdown)
+        val parsedState = NodeState.values.find(_.toString == data).getOrElse(NodeState.Shutdown)
         val info = new NodeInfo(parsedState.toString, 0)
         log.warn("Saw node data in non-JSON format. Interpreting %s as: %s", data, info)
         info
