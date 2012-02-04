@@ -19,7 +19,7 @@ package com.boundary.ordasity
 import com.codahale.jerkson.Json._
 import com.codahale.logula.Logging
 import com.twitter.zookeeper.ZooKeeperClient
-import com.yammer.metrics.{Meter, Instrumented}
+import com.yammer.metrics.scala.{Meter, Instrumented}
 
 import java.nio.charset.Charset
 import overlock.atomicmap.AtomicMap

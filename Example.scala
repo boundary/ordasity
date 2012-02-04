@@ -18,7 +18,7 @@ import java.util.Random
 import java.util.concurrent.CountDownLatch
 import com.boundary.ordasity.{Cluster, ClusterConfig, SmartListener}
 import com.codahale.logula.Logging
-import com.yammer.metrics.Meter
+import com.yammer.metrics.scala.Meter
 import com.twitter.zookeeper.ZooKeeperClient
 import java.util.concurrent.{ScheduledThreadPoolExecutor, TimeUnit, ScheduledFuture}
 import java.util.{HashMap, TimerTask}

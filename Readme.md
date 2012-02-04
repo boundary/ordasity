@@ -41,7 +41,7 @@ Ordasity is designed to spread persistent or long-lived workloads across several
 
 Let's get started with an example. Here's how to build a clustered service in 25 lines of code with Ordasity:
 
-    import com.yammer.metrics.Meter
+    import com.yammer.metrics.scala.Meter
     import com.twitter.zookeeper.ZooKeeperClient
     import com.boundary.ordasity.{Cluster, ClusterConfig, SmartListener}
 
