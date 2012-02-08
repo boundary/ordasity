@@ -3,7 +3,7 @@ package com.boundary.ordasity
 import com.codahale.jerkson.Json._
 import com.codahale.logula.Logging
 import com.twitter.zookeeper.ZooKeeperClient
-import com.yammer.metrics.{Meter, Instrumented}
+import com.yammer.metrics.scala.{Meter, Instrumented}
 
 import java.nio.charset.Charset
 import overlock.atomicmap.AtomicMap
@@ -705,7 +705,7 @@ class Cluster(name: String, listener: Listener, config: ClusterConfig) extends C
       parse[NodeInfo](data)
     } catch {
       case e: Exception =>
-        val parsedState = NodeState.valueOf(data).getOrElse(NodeState.Shutdown)
+        val parsedState = NodeState.values.find(_.toString == data).getOrElse(NodeState.Shutdown)
         val info = new NodeInfo(parsedState.toString, 0)
         log.warn("Saw node data in non-JSON format. Interpreting %s as: %s", data, info)
         info
