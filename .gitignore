@@ -5,3 +5,7 @@ build/
 *.ipr
 *.iml
 *.iws
+*~
+~*
+#*
+*#

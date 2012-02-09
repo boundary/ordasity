@@ -4,7 +4,8 @@ import com.yammer.metrics.scala.Meter
 import com.twitter.zookeeper.ZooKeeperClient
 
 class MyService {
-  val config = new ClusterConfig("localhost:2181").
+  val config = new ClusterConfig().
+    setHosts("localhost:2181").
     setAutoRebalance(true).
     setRebalanceInterval(60).
     useSmartBalancing(true).
