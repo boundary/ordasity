@@ -1,6 +1,6 @@
 package com.boundary.ordasity
 
-import com.yammer.metrics.Meter
+import com.yammer.metrics.scala.Meter
 import com.twitter.common.zookeeper.ZooKeeperClient
 
 class MyService {
