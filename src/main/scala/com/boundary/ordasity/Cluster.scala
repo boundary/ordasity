@@ -30,7 +30,6 @@ import java.util.concurrent.{TimeUnit, ScheduledFuture, ScheduledThreadPoolExecu
 
 import java.net.InetSocketAddress
 import org.apache.zookeeper.KeeperException.NoNodeException
-import org.apache.zookeeper.{WatchedEvent, Watcher}
 import com.twitter.common.quantity.{Time, Amount}
 import com.twitter.common.zookeeper.{ZooKeeperMap => ZKMap, ZooKeeperClient}
 
@@ -45,6 +44,7 @@ trait ClusterMBean {
 class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     extends ClusterMBean with Logging with Instrumented {
   var myNodeID = config.nodeId
+  val watchesRegistered = new AtomicBoolean(false)
 
   // Register Ordasity with JMX for management / instrumentation.
   ManagementFactory.getPlatformMBeanServer.registerMBean(
@@ -61,8 +61,6 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   var loadMap : Map[String, Double] = null
   val workUnitsPeggedToMe = new NonBlockingHashSet[String]
 
-  val watchesRegistered = new AtomicBoolean(false)
-
   var balancingPolicy = {
     if (config.useSmartBalancing)
       new MeteredBalancingPolicy(this, config).init()
@@ -71,7 +69,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   }
 
   // Scheduled executions
-  val pool = new ScheduledThreadPoolExecutor(1)
+  val pool = new AtomicReference[ScheduledThreadPoolExecutor](new ScheduledThreadPoolExecutor(1))
   var autoRebalanceFuture : Option[ScheduledFuture[_]] = None
 
   // Metrics
@@ -173,9 +171,8 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
 
     listener.onJoin(zk)
 
-    watchesRegistered.set(false)
-    registerWatchers()
-    watchesRegistered.set(true)
+    if (watchesRegistered.compareAndSet(false, true))
+      registerWatchers()
 
     setState(NodeState.Started)
     claimWork()
@@ -193,6 +190,8 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
    */
   def ensureCleanStartup() {
     forceShutdown()
+    val oldPool = pool.getAndSet(new ScheduledThreadPoolExecutor(1))
+    oldPool.shutdownNow()
     myWorkUnits.clear()
     claimedForHandoff.clear()
     workUnitsPeggedToMe.clear()
@@ -210,7 +209,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     }
 
     autoRebalanceFuture = Some(
-      pool.scheduleAtFixedRate(runRebalance, interval, interval, TimeUnit.SECONDS))
+      pool.get.scheduleAtFixedRate(runRebalance, interval, interval, TimeUnit.SECONDS))
   }
 
 
@@ -266,12 +265,6 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       handoffRequests = new HashMap[String, String]
       handoffResults = new HashMap[String, String]
     }
-
-    // Watch for rebalance requests.
-    // TODO: Make a persistent watch.
-    zk.get().getData("/%s/meta/rebalance".format(name), new Watcher(){
-      def process(p1: WatchedEvent) { rebalance() }
-    }, null)
 
     // If smart balancing is enabled, watch for changes to the cluster's workload.
     if (config.useSmartBalancing)

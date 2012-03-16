@@ -48,7 +48,7 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
       log.info("Handoff of %s to %s completed. Shutting down %s in %s seconds.", workUnit,
         cluster.getOrElse(cluster.handoffResults, workUnit, "(None)"), workUnit, config.handoffShutdownDelay)
       ZKUtils.delete(cluster.zk, "/%s/handoff-requests/%s".format(cluster.name, workUnit))
-      cluster.pool.schedule(shutdownAfterHandoff(workUnit), config.handoffShutdownDelay, TimeUnit.SECONDS)
+      cluster.pool.get.schedule(shutdownAfterHandoff(workUnit), config.handoffShutdownDelay, TimeUnit.SECONDS)
     }
   }
 
@@ -109,12 +109,12 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
           log.warn("Handoff of %s to me complete. Peer has shut down work.", workUnit)
         } else {
           log.warn("Waiting to establish final ownership of %s following handoff...", workUnit)
-          cluster.pool.schedule(this, retryTime, TimeUnit.MILLISECONDS)
+          cluster.pool.get.schedule(this, retryTime, TimeUnit.MILLISECONDS)
         }
       }
     }
 
-    cluster.pool.schedule(claimPostHandoffTask, config.handoffShutdownDelay, TimeUnit.SECONDS)
+    cluster.pool.get.schedule(claimPostHandoffTask, config.handoffShutdownDelay, TimeUnit.SECONDS)
   }
 
 }

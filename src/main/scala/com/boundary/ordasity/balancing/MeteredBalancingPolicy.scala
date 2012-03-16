@@ -127,7 +127,7 @@ class MeteredBalancingPolicy(cluster: Cluster, config: ClusterConfig)
       }
     }
 
-    loadFuture = Some(cluster.pool.scheduleAtFixedRate(
+    loadFuture = Some(cluster.pool.get.scheduleAtFixedRate(
       sendLoadToZookeeper, 0, 1, TimeUnit.MINUTES))
   }
 
@@ -159,7 +159,7 @@ class MeteredBalancingPolicy(cluster: Cluster, config: ClusterConfig)
     if (!drainList.isEmpty) {
       log.info("Releasing work units over %s seconds. Current load: %s. Target: %s. " +
         "Releasing: %s", time, startingLoad, targetLoad, drainList.mkString(", "))
-      cluster.pool.schedule(drainTask, 0, TimeUnit.SECONDS)
+      cluster.pool.get.schedule(drainTask, 0, TimeUnit.SECONDS)
     }
   }
 
@@ -177,7 +177,7 @@ class MeteredBalancingPolicy(cluster: Cluster, config: ClusterConfig)
         else
           cluster.shutdownWork(drainList.poll)
 
-        cluster.pool.schedule(this, drainInterval, TimeUnit.MILLISECONDS)
+        cluster.pool.get.schedule(this, drainInterval, TimeUnit.MILLISECONDS)
       }
     }
   }

@@ -260,7 +260,7 @@ class HandoffResultsListenerSpec extends Spec with Logging {
       val mockZKClient = mock[ZooKeeperClient]
       mockZKClient.get().returns(mockZK)
       cluster.zk.returns(mockZKClient)
-      cluster.pool.returns(new ScheduledThreadPoolExecutor(1))
+      cluster.pool.returns(new AtomicReference[ScheduledThreadPoolExecutor](new ScheduledThreadPoolExecutor(1)))
 
       // More mocks.
       cluster.handoffResults.returns(handoffResults)

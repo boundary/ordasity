@@ -192,7 +192,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
           if (useHandoff && !isPeggedToMe(workUnit)) cluster.requestHandoff(workUnit)
           else cluster.shutdownWork(workUnit)
         }
-        cluster.pool.schedule(this, drainInterval, TimeUnit.MILLISECONDS)
+        cluster.pool.get.schedule(this, drainInterval, TimeUnit.MILLISECONDS)
       }
     }
 
@@ -200,7 +200,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
       amountToDrain, cluster.myWorkUnits.size, config.drainTime, toHandOff.mkString(", "))
 
     if (!cluster.myWorkUnits.isEmpty)
-      cluster.pool.schedule(handoffTask, 0, TimeUnit.SECONDS)
+      cluster.pool.get.schedule(handoffTask, 0, TimeUnit.SECONDS)
   }
 
 }
