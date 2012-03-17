@@ -19,9 +19,10 @@ package com.boundary.ordasity
 import com.codahale.logula.Logging
 import com.twitter.common.zookeeper.{ZooKeeperUtils, ZooKeeperClient}
 
-import org.apache.zookeeper.CreateMode
 import org.apache.zookeeper.ZooDefs.Ids
 import org.apache.zookeeper.KeeperException.{NoNodeException, NodeExistsException}
+import org.apache.zookeeper.{WatchedEvent, Watcher, KeeperException, CreateMode}
+import org.apache.zookeeper.Watcher.Event.EventType
 
 object ZKUtils extends Logging {
 
@@ -97,4 +98,44 @@ object ZKUtils extends Logging {
         null
     }
   }
+
+  /**
+   * Watches a node. When the node's data is changed, onDataChanged will be called with the
+   * new data value as a byte array. If the node is deleted, onDataChanged will be called with
+   * None and will track the node's re-creation with an existence watch. Borrowed from the Twitter
+   * scala-zookeeper-client by Alex Payne, released under Apache 2.0. THANKS AL3X!
+   */
+  def watchNode(zk: ZooKeeperClient, node : String, onDataChanged : Option[Array[Byte]] => Unit) {
+    log.debug("Watching node %s", node)
+    def updateData {
+      try {
+        onDataChanged(Some(zk.get.getData(node, dataGetter, null)))
+      } catch {
+        case e:KeeperException => {
+          log.warn("Failed to read node %s: %s", node, e)
+          deletedData
+        }
+      }
+    }
+
+    def deletedData {
+      onDataChanged(None)
+      if (zk.get.exists(node, dataGetter) != null) {
+        // Node was re-created by the time we called zk.exist
+        updateData
+      }
+    }
+
+    def dataGetter = new Watcher {
+      def process(event : WatchedEvent) {
+        if (event.getType == EventType.NodeDataChanged || event.getType == EventType.NodeCreated) {
+          updateData
+        } else if (event.getType == EventType.NodeDeleted) {
+          deletedData
+        }
+      }
+    }
+    updateData
+  }
+
 }
