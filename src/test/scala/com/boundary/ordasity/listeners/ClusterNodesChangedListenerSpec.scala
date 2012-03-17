@@ -36,6 +36,7 @@ class ClusterNodesChangedListenerSpec extends Spec with Logging {
     @Test def `node changed` {
       val cluster = mock[Cluster]
       cluster.watchesRegistered.returns(new AtomicBoolean(true))
+      cluster.initialized.returns(new AtomicBoolean(true))
 
       val listener = new ClusterNodesChangedListener(cluster)
       listener.nodeChanged("foo", NodeInfo(NodeState.Started.toString, 0L))
@@ -47,6 +48,7 @@ class ClusterNodesChangedListenerSpec extends Spec with Logging {
     @Test def `node removed` {
       val cluster = mock[Cluster]
       cluster.watchesRegistered.returns(new AtomicBoolean(true))
+      cluster.initialized.returns(new AtomicBoolean(true))
 
       val listener = new ClusterNodesChangedListener(cluster)
       listener.nodeRemoved("foo")
@@ -58,6 +60,7 @@ class ClusterNodesChangedListenerSpec extends Spec with Logging {
     @Test def `node changed - watches unregistered` {
       val cluster = mock[Cluster]
       cluster.watchesRegistered.returns(new AtomicBoolean(false))
+      cluster.initialized.returns(new AtomicBoolean(false))
 
       val listener = new ClusterNodesChangedListener(cluster)
       listener.nodeChanged("foo", NodeInfo(NodeState.Started.toString, 0L))
@@ -69,6 +72,7 @@ class ClusterNodesChangedListenerSpec extends Spec with Logging {
     @Test def `node removed - watches unregistered` {
       val cluster = mock[Cluster]
       cluster.watchesRegistered.returns(new AtomicBoolean(false))
+      cluster.initialized.returns(new AtomicBoolean(false))
 
       val listener = new ClusterNodesChangedListener(cluster)
       listener.nodeRemoved("foo")

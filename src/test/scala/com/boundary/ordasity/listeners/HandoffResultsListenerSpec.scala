@@ -213,6 +213,7 @@ class HandoffResultsListenerSpec extends Spec with Logging {
       val listener = new HandoffResultsListener(cluster, config)
 
       cluster.watchesRegistered.set(true)
+      cluster.initialized.set(true)
       cluster.handoffResults = new HashMap[String, String]
       cluster.handoffResults.put(workUnit, "testNode")
       cluster.myWorkUnits.add(workUnit)
@@ -268,6 +269,7 @@ class HandoffResultsListenerSpec extends Spec with Logging {
       cluster.isMe("otherNode").returns(false)
       cluster.getOrElse(handoffResults, workUnit, "").returns("otherNode")
       cluster.watchesRegistered.returns(new AtomicBoolean(true))
+      cluster.initialized.returns(new AtomicBoolean(true))
       cluster.state.returns(new AtomicReference(NodeState.Started))
 
       // Assert that the listener behaves correctly when called, given the above state.

@@ -26,7 +26,6 @@ import java.util.{HashMap, Map}
 import scala.collection.JavaConversions._
 import org.cliffc.high_scale_lib.NonBlockingHashSet
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
-import java.util.concurrent.{TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
 
 import java.net.InetSocketAddress
 import org.apache.zookeeper.KeeperException.NoNodeException
@@ -35,6 +34,9 @@ import com.twitter.common.zookeeper.{ZooKeeperMap => ZKMap, ZooKeeperClient}
 
 import listeners._
 import balancing.{CountBalancingPolicy, MeteredBalancingPolicy}
+import org.apache.zookeeper.{WatchedEvent, Watcher}
+import org.apache.zookeeper.Watcher.Event.KeeperState
+import java.util.concurrent.{TimeoutException, TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
 
 trait ClusterMBean {
   def join() : String
@@ -45,6 +47,8 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     extends ClusterMBean with Logging with Instrumented {
   var myNodeID = config.nodeId
   val watchesRegistered = new AtomicBoolean(false)
+  val initialized = new AtomicBoolean(false)
+  val connected = new AtomicBoolean(false)
 
   // Register Ordasity with JMX for management / instrumentation.
   ManagementFactory.getPlatformMBeanServer.registerMBean(
@@ -96,23 +100,70 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     state.get().toString
   }
 
+  val connectionWatcher = new Watcher {
+    def process(event: WatchedEvent) {
+      event.getState match {
+        case KeeperState.SyncConnected => {
+          log.info("ZooKeeper session established.")
+          try {
+            onConnect()
+          } catch {
+            case e:Exception =>
+              log.error(e, "Exception during zookeeper connection established callback")
+          }
+        }
+        case KeeperState.Expired =>
+          log.info("ZooKeeper session expired.")
+          connected.set(false)
+          forceShutdown()
+          awaitReconnect()
+        case KeeperState.Disconnected =>
+          log.info("ZooKeeper session disconnected. Awaiting reconnect...")
+          connected.set(false)
+          awaitReconnect()
+        case x: Any =>
+          log.info("ZooKeeper session interrupted. Shutting down due to %s", x)
+          connected.set(false)
+          awaitReconnect()
+      }
+    }
+
+    def awaitReconnect() {
+      while (true) {
+        try {
+          log.info("Awaiting reconnection to ZooKeeper...")
+          zk.get(Amount.of(1L, Time.SECONDS))
+          return
+        } catch {
+          case e: TimeoutException => log.warn("Timed out reconnecting to ZooKeeper.")
+          case e: Exception => log.error("Error reconnecting to ZooKeeper", e)
+        }
+      }
+
+    }
+
+  }
+
   /**
    * Directs the ZooKeeperClient to connect to the ZooKeeper ensemble and wait for
    * the connection to be established before continuing.
    */
   def connect(injectedClient: Option[ZooKeeperClient] = None) {
-    val hosts = config.hosts.split(",").map { server =>
-      val host = server.split(":")(0)
-      val port = Integer.parseInt(server.split(":")(1))
-      new InetSocketAddress(host, port)
-    }.toList
+    if (!initialized.get) {
+      val hosts = config.hosts.split(",").map { server =>
+        val host = server.split(":")(0)
+        val port = Integer.parseInt(server.split(":")(1))
+        new InetSocketAddress(host, port)
+      }.toList
 
-    log.info("Connecting to hosts: %s", hosts.toString)
-    zk = injectedClient.getOrElse(
-      new ZooKeeperClient(Amount.of(config.zkTimeout, Time.MILLISECONDS), hosts))
+      log.info("Connecting to hosts: %s", hosts.toString)
+      zk = injectedClient.getOrElse(
+        new ZooKeeperClient(Amount.of(config.zkTimeout, Time.MILLISECONDS), hosts))
+      log.info("Registering connection watcher.")
+      zk.register(connectionWatcher)
+    }
+
     zk.get()
-    log.info("Connected to ZooKeeper with hosts: %s", hosts.toString)
-    onConnect()
   }
 
   /**
@@ -164,6 +215,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       }
     }
 
+    connected.set(true)
     log.info("Connected to Zookeeper (ID: %s).", myNodeID)
     ZKUtils.ensureOrdasityPaths(zk, name, config.workUnitName, config.workUnitShortName)
 
@@ -173,12 +225,14 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
 
     if (watchesRegistered.compareAndSet(false, true))
       registerWatchers()
-
+    initialized.set(true)
+    
     setState(NodeState.Started)
     claimWork()
     verifyIntegrity()
 
     balancingPolicy.onConnect()
+
 
     if (config.enableAutoRebalance)
       scheduleRebalancing()
@@ -192,6 +246,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     forceShutdown()
     val oldPool = pool.getAndSet(new ScheduledThreadPoolExecutor(1))
     oldPool.shutdownNow()
+    myWorkUnits.map(w => shutdownWork(w))
     myWorkUnits.clear()
     claimedForHandoff.clear()
     workUnitsPeggedToMe.clear()
@@ -277,7 +332,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
    * on node and cluster load. If simple balancing is in effect, claim by count.
    */
   def claimWork() {
-    if (state.get != NodeState.Started) return
+    if (state.get != NodeState.Started || !connected.get) return
     balancingPolicy.claimWork()
   }
 

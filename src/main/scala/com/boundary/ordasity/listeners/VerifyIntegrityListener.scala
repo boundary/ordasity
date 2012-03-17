@@ -30,7 +30,7 @@ class VerifyIntegrityListener(cluster: Cluster, config: ClusterConfig)
     extends ZooKeeperMap.ZKMapListener[String] with Logging {
 
   def nodeChanged(nodeName: String, data: String) {
-    if (!cluster.watchesRegistered.get()) return
+    if (!cluster.initialized.get()) return
 
     log.debug(config.workUnitName.capitalize +
       " IDs: %s".format(cluster.allWorkUnits.keys.mkString(", ")))
@@ -40,7 +40,7 @@ class VerifyIntegrityListener(cluster: Cluster, config: ClusterConfig)
   }
 
   def nodeRemoved(nodeName: String) {
-    if (!cluster.watchesRegistered.get()) return
+    if (!cluster.initialized.get()) return
 
     cluster.claimWork()
     cluster.verifyIntegrity()

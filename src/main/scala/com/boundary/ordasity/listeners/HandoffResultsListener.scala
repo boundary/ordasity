@@ -39,7 +39,7 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
    * another node, shut it down after <config> seconds.
    */
   def apply(workUnit: String) {
-    if (!cluster.watchesRegistered.get()) return
+    if (!cluster.initialized.get()) return
 
     if (iAcceptedHandoff(workUnit)) {
       finishHandoff(workUnit)

@@ -30,7 +30,7 @@ class ClusterNodesChangedListener(cluster: Cluster)
     extends ZooKeeperMap.ZKMapListener[NodeInfo] with Logging {
 
   def nodeChanged(nodeName: String, data: NodeInfo) {
-    if (!cluster.watchesRegistered.get()) return
+    if (!cluster.initialized.get()) return
 
     log.info("Nodes: %s".format(cluster.nodes.map(n => n._1).mkString(", ")))
     cluster.claimWork()
@@ -38,7 +38,7 @@ class ClusterNodesChangedListener(cluster: Cluster)
   }
 
   def nodeRemoved(nodeName: String) {
-    if (!cluster.watchesRegistered.get()) return
+    if (!cluster.initialized.get()) return
     log.info("%s has left the cluster.", nodeName)
     cluster.claimWork()
     cluster.verifyIntegrity()
