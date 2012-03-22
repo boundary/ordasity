@@ -41,6 +41,7 @@ import java.util.concurrent.{TimeoutException, TimeUnit, ScheduledFuture, Schedu
 trait ClusterMBean {
   def join() : String
   def shutdown()
+  def rebalance()
 }
 
 class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
@@ -415,7 +416,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
    * sum of all work unit meters in the cluster. If smart balancing is disabled,
    * the target load is set to (# of work items / node count).
    */
-  def rebalance(data: Option[Array[Byte]] = null) {
+  def rebalance() {
     if (state.get() == NodeState.Fresh) return
     balancingPolicy.rebalance()
   }
