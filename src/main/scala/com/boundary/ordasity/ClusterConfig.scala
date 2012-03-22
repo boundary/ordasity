@@ -1,5 +1,5 @@
 //
-// Copyright 2011, Boundary
+// Copyright 2011-2012, Boundary
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,9 +18,10 @@ package com.boundary.ordasity
 
 import java.net.InetAddress
 
-class ClusterConfig(val hosts: String) {
+class ClusterConfig {
 
   // Defaults
+  var hosts = ""
   var enableAutoRebalance = true
   var autoRebalanceInterval = 60
   var drainTime = 60
@@ -31,6 +32,11 @@ class ClusterConfig(val hosts: String) {
   var nodeId = InetAddress.getLocalHost.getHostName
   var useSoftHandoff = false
   var handoffShutdownDelay = 10
+
+  def setHosts(to: String) : ClusterConfig = {
+    hosts = to
+    this
+  }
 
   def setAutoRebalance(to: Boolean) : ClusterConfig = {
     enableAutoRebalance = to

@@ -1,5 +1,5 @@
 //
-// Copyright 2011, Boundary
+// Copyright 2011-2012, Boundary
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ import java.util.Random
 import java.util.concurrent.CountDownLatch
 import com.boundary.ordasity.{Cluster, ClusterConfig, SmartListener}
 import com.codahale.logula.Logging
-import com.yammer.metrics.scala.Meter
+import com.yammer.metrics.Meter
 import com.twitter.zookeeper.ZooKeeperClient
 import java.util.concurrent.{ScheduledThreadPoolExecutor, TimeUnit, ScheduledFuture}
 import java.util.{HashMap, TimerTask}
@@ -33,16 +33,16 @@ val futures = new HashMap[String, ScheduledFuture[_]]
 
 val config = new ClusterConfig("localhost:2181").
   setAutoRebalance(true).
-  setRebalanceInterval(60 * 5).
+  setRebalanceInterval(15).
   useSmartBalancing(true).
-  setDrainTime(60).
-  setZKTimeout(3000).
+  setDrainTime(3).
+  setZKTimeout(3).
   setUseSoftHandoff(true).
   setNodeId(java.util.UUID.randomUUID().toString)
 
 val listener = new SmartListener {
   def onJoin(client: ZooKeeperClient) = {}
-  def onLeave() = { }
+  def onLeave() = {}
 
   // Do yer thang, mark dat meter.
   def startWork(workUnit: String, meter: Meter) = {

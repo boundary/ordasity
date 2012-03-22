@@ -1,5 +1,5 @@
 //
-// Copyright 2011, Boundary
+// Copyright 2011-2012, Boundary
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,17 +16,31 @@
 
 package com.boundary.ordasity
 
-import org.apache.zookeeper.CreateMode
-import com.twitter.zookeeper.ZooKeeperClient
-import org.apache.zookeeper.KeeperException.{NoNodeException, NodeExistsException}
 import com.codahale.logula.Logging
+import com.twitter.common.zookeeper.{ZooKeeperUtils, ZooKeeperClient}
+
+import org.apache.zookeeper.ZooDefs.Ids
+import org.apache.zookeeper.KeeperException.{NoNodeException, NodeExistsException}
+import org.apache.zookeeper.{WatchedEvent, Watcher, KeeperException, CreateMode}
+import org.apache.zookeeper.Watcher.Event.EventType
 
 object ZKUtils extends Logging {
+
+  def ensureOrdasityPaths(zk: ZooKeeperClient, name: String,  unit: String, unitShort: String) {
+    val acl = Ids.OPEN_ACL_UNSAFE
+    ZooKeeperUtils.ensurePath(zk, acl, "/%s/nodes".format(name))
+    ZooKeeperUtils.ensurePath(zk, acl, "/%s".format(unit))
+    ZooKeeperUtils.ensurePath(zk, acl, "/%s/meta/rebalance".format(name))
+    ZooKeeperUtils.ensurePath(zk, acl, "/%s/meta/workload".format(name))
+    ZooKeeperUtils.ensurePath(zk, acl, "/%s/claimed-%s".format(name, unitShort))
+    ZooKeeperUtils.ensurePath(zk, acl, "/%s/handoff-requests".format(name))
+    ZooKeeperUtils.ensurePath(zk, acl, "/%s/handoff-result".format(name))
+  }
 
   def createEphemeral(zk: ZooKeeperClient, path: String, value: String = "") : Boolean = {
     val created = {
       try {
-        zk.create(path, value.getBytes, CreateMode.EPHEMERAL)
+        zk.get().create(path, value.getBytes, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL)
         true
       } catch {
         case e: NodeExistsException => false
@@ -38,7 +52,7 @@ object ZKUtils extends Logging {
 
   def delete(zk: ZooKeeperClient, path: String) : Boolean = {
     try {
-      zk.delete(path)
+      zk.get().delete(path, -1)
       true
     } catch {
       case e: NoNodeException =>
@@ -50,29 +64,31 @@ object ZKUtils extends Logging {
     }
   }
 
-  def set(zk: ZooKeeperClient, path: String, data: String) {
+  def set(zk: ZooKeeperClient, path: String, data: String) : Boolean = {
     try {
-      zk.set(path, data.getBytes)
+      zk.get().setData(path, data.getBytes, -1)
       true
     } catch {
       case e: Exception =>
         log.error(e, "Error setting %s to %s.", path, data)
+        false
     }
   }
 
 
-  def setOrCreate(zk: ZooKeeperClient, path: String, data: String) {
+  def setOrCreate(zk: ZooKeeperClient, path: String,
+                  data: String, mode: CreateMode = CreateMode.EPHEMERAL) {
     try {
-      zk.set(path, data.getBytes)
+      zk.get().setData(path, data.getBytes, -1)
     } catch {
       case e: NoNodeException =>
-        zk.create(path, data.getBytes, CreateMode.EPHEMERAL)
+        zk.get().create(path, data.getBytes, Ids.OPEN_ACL_UNSAFE, mode)
     }
   }
 
   def get(zk: ZooKeeperClient, path: String) : String = {
     try {
-      val value = zk.get(path)
+      val value = zk.get.getData(path, false, null)
       new String(value)
     } catch {
       case e: NoNodeException =>
@@ -82,4 +98,44 @@ object ZKUtils extends Logging {
         null
     }
   }
+
+  /**
+   * Watches a node. When the node's data is changed, onDataChanged will be called with the
+   * new data value as a byte array. If the node is deleted, onDataChanged will be called with
+   * None and will track the node's re-creation with an existence watch. Borrowed from the Twitter
+   * scala-zookeeper-client by Alex Payne, released under Apache 2.0. THANKS AL3X!
+   */
+  def watchNode(zk: ZooKeeperClient, node : String, onDataChanged : Option[Array[Byte]] => Unit) {
+    log.debug("Watching node %s", node)
+    def updateData {
+      try {
+        onDataChanged(Some(zk.get.getData(node, dataGetter, null)))
+      } catch {
+        case e:KeeperException => {
+          log.warn("Failed to read node %s: %s", node, e)
+          deletedData
+        }
+      }
+    }
+
+    def deletedData {
+      onDataChanged(None)
+      if (zk.get.exists(node, dataGetter) != null) {
+        // Node was re-created by the time we called zk.exist
+        updateData
+      }
+    }
+
+    def dataGetter = new Watcher {
+      def process(event : WatchedEvent) {
+        if (event.getType == EventType.NodeDataChanged || event.getType == EventType.NodeCreated) {
+          updateData
+        } else if (event.getType == EventType.NodeDeleted) {
+          deletedData
+        }
+      }
+    }
+    updateData
+  }
+
 }
