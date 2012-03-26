@@ -114,16 +114,20 @@ class MeteredBalancingPolicy(cluster: Cluster, config: ClusterConfig)
   private def scheduleLoadTicks() {
     val sendLoadToZookeeper = new Runnable {
       def run() {
-        meters.foreach { case(workUnit, meter) =>
-          val loadPath = "/%s/meta/workload/%s".format(cluster.name, workUnit)
-          ZKUtils.setOrCreate(cluster.zk, loadPath, meter.oneMinuteRate.toString, CreateMode.PERSISTENT)
+        try {
+          meters.foreach { case(workUnit, meter) =>
+            val loadPath = "/%s/meta/workload/%s".format(cluster.name, workUnit)
+            ZKUtils.setOrCreate(cluster.zk, loadPath, meter.oneMinuteRate.toString, CreateMode.PERSISTENT)
+          }
+
+          val myInfo = new NodeInfo(cluster.getState.toString, cluster.zk.get().getSessionId)
+          val nodeLoadPath = "/%s/nodes/%s".format(cluster.name, cluster.myNodeID)
+          ZKUtils.setOrCreate(cluster.zk, nodeLoadPath, Json.generate(myInfo), CreateMode.EPHEMERAL)
+
+          log.info("My load: %s", myLoad())          
+        } catch {
+          case e: Exception => log.error(e, "Error reporting load info to ZooKeeper.")
         }
-
-        val myInfo = new NodeInfo(cluster.getState.toString, cluster.zk.get().getSessionId)
-        val nodeLoadPath = "/%s/nodes/%s".format(cluster.name, cluster.myNodeID)
-        ZKUtils.setOrCreate(cluster.zk, nodeLoadPath, Json.generate(myInfo), CreateMode.EPHEMERAL)
-
-        log.info("My load: %s", myLoad())
       }
     }
 
