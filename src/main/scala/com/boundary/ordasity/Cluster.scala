@@ -261,7 +261,13 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   def scheduleRebalancing() {
     val interval = config.autoRebalanceInterval
     val runRebalance = new Runnable {
-      def run() = rebalance()
+      def run() {
+        try {
+          rebalance()
+        } catch {
+          case e: Exception => log.error(e, "Error running auto-rebalance.")
+        }
+      }
     }
 
     autoRebalanceFuture = Some(
