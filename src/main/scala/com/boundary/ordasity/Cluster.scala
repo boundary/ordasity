@@ -389,16 +389,20 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
    */
   def startWork(workUnit: String, meter: Option[Meter] = None) {
     log.info("Successfully claimed %s: %s. Starting...", config.workUnitName, workUnit)
-    myWorkUnits.add(workUnit)
+    val added = myWorkUnits.add(workUnit)
 
-    if (balancingPolicy.isInstanceOf[MeteredBalancingPolicy]) {
-      val mbp = balancingPolicy.asInstanceOf[MeteredBalancingPolicy]
-      val meter = mbp.persistentMeterCache.getOrElseUpdate(
-        workUnit, metrics.meter(workUnit, "processing"))
-      mbp.meters.put(workUnit, meter)
-      listener.asInstanceOf[SmartListener].startWork(workUnit, meter)
+    if (added) {
+      if (balancingPolicy.isInstanceOf[MeteredBalancingPolicy]) {
+        val mbp = balancingPolicy.asInstanceOf[MeteredBalancingPolicy]
+        val meter = mbp.persistentMeterCache.getOrElseUpdate(
+          workUnit, metrics.meter(workUnit, "processing"))
+        mbp.meters.put(workUnit, meter)
+        listener.asInstanceOf[SmartListener].startWork(workUnit, meter)
+      } else {
+        listener.asInstanceOf[ClusterListener].startWork(workUnit)
+      }
     } else {
-      listener.asInstanceOf[ClusterListener].startWork(workUnit)
+      log.warn("Detected that %s is already a member of my work units; not starting twice!", workUnit)
     }
   }
 

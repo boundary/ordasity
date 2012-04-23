@@ -140,7 +140,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
     val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
 
     while (true) {
-      if (ZKUtils.createEphemeral(cluster.zk, path, cluster.myNodeID)) {
+      if (ZKUtils.createEphemeral(cluster.zk, path, cluster.myNodeID) || cluster.znodeIsMe(path)) {
         cluster.startWork(workUnit)
         return
       } else {
