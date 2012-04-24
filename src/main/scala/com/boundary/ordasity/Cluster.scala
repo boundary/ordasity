@@ -366,15 +366,16 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     // Check the status of pegged work units to ensure that this node is not serving
     // a work unit that is pegged to another node in the cluster.
     myWorkUnits.map { workUnit =>
+      val claimPath = "/%s/claimed-%s/%s".format(name, config.workUnitShortName, workUnit)
       if (!balancingPolicy.isFairGame(workUnit) && !balancingPolicy.isPeggedToMe(workUnit)) {
         log.info("Discovered I'm serving a work unit that's now " +
           "pegged to someone else. Shutting down %s", workUnit)
         shutdownWork(workUnit)
 
       } else if (workUnitMap.contains(workUnit) && !workUnitMap.get(workUnit).equals(myNodeID) &&
-          !claimedForHandoff.contains(workUnit) && !znodeIsMe(workUnit)) {
+          !claimedForHandoff.contains(workUnit) && !znodeIsMe(claimPath)) {
         log.info("Discovered I'm serving a work unit that's now " +
-          "served by %s. Shutting down %s", workUnitMap.get(workUnit), workUnit)
+          "claimed by %s according to ZooKeeper. Shutting down %s", workUnitMap.get(workUnit), workUnit)
         shutdownWork(workUnit, true, false)
       }
     }

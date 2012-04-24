@@ -311,18 +311,23 @@ class ClusterSpec extends Spec with Logging {
       cluster.workUnitMap.putAll(workUnitMap)
       cluster.claimedForHandoff.addAll(claimedForHandoff)
 
+      mockZK.getData("/%s/claimed-work/bar".format(id), false, null).returns("testNode".getBytes)
+      mockZK.getData("/%s/claimed-work/baz".format(id), false, null).returns("someoneElse".getBytes)
+
       cluster.verifyIntegrity()
 
       // Should shut down {shut, me, down} because they've been removed from the cluster.
-      // Should shut down {bar, baz} because they're now being served by someone else.
+      // Should leave {bar} active because it's marked as served by me in ZK despite the ZK
+      // map not yet reflecting this node's claim of the organization.
+      // Should shut down {baz} because it's now being served by someone else.
       // Should shut down {dong} because it has been pegged to someone else.
       // Should leave {foo} active because it's currently served by me.
       // Should leave {taco} active because I have claimed it for handoff.
-      List("shut", "me", "down", "bar", "baz", "dong").foreach { workUnit =>
+      List("shut", "me", "down", "baz", "dong").foreach { workUnit =>
         cluster.myWorkUnits.contains(workUnit).must(be(false))
       }
 
-      List("foo", "taco").foreach { workUnit =>
+      List("foo", "taco", "bar").foreach { workUnit =>
         cluster.myWorkUnits.contains(workUnit).must(be(true))
       }
     }
