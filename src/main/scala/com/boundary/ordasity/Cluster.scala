@@ -107,7 +107,10 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
         case KeeperState.SyncConnected => {
           log.info("ZooKeeper session established.")
           try {
-            onConnect()
+            if (state.get() != NodeState.Shutdown)
+              onConnect()
+            else
+              log.info("This node is shut down. ZK connection re-established, but not relaunching.")
           } catch {
             case e:Exception =>
               log.error(e, "Exception during zookeeper connection established callback")
