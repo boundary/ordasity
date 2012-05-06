@@ -17,21 +17,22 @@
 package com.boundary.ordasity
 
 import java.net.InetAddress
+import org.codehaus.jackson.annotate.JsonProperty
 
 class ClusterConfig {
 
   // Defaults
-  var hosts = ""
-  var enableAutoRebalance = true
-  var autoRebalanceInterval = 60
-  var drainTime = 60
-  var useSmartBalancing = false
-  var zkTimeout = 3000
-  var workUnitName = "work-units"
-  var workUnitShortName = "work"
-  var nodeId = InetAddress.getLocalHost.getHostName
-  var useSoftHandoff = false
-  var handoffShutdownDelay = 10
+  @JsonProperty var hosts = ""
+  @JsonProperty var enableAutoRebalance = true
+  @JsonProperty var autoRebalanceInterval = 60
+  @JsonProperty var drainTime = 60
+  @JsonProperty var useSmartBalancing = false
+  @JsonProperty var zkTimeout = 3000
+  @JsonProperty var workUnitName = "work-units"
+  @JsonProperty var workUnitShortName = "work"
+  @JsonProperty var nodeId = InetAddress.getLocalHost.getHostName
+  @JsonProperty var useSoftHandoff = false
+  @JsonProperty var handoffShutdownDelay = 10
 
   def setHosts(to: String) : ClusterConfig = {
     hosts = to
