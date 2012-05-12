@@ -200,6 +200,8 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
    */
   def completeShutdown() {
     setState(NodeState.Shutdown)
+    myWorkUnits.map(w => shutdownWork(w))
+    myWorkUnits.clear()
     try {
       zk.close()
     } catch {

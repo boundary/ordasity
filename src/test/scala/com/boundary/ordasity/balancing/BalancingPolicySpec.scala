@@ -118,7 +118,7 @@ class BalancingPolicySpec extends Spec with Logging {
       cluster.myWorkUnits.contains("peggedToMe").must(be(true))
     }
 
-    @Test def `draint to count` {
+    @Test def `drain to count` {
       val cluster = makeCluster()
       val balancer = new DummyBalancingPolicy(cluster, config)
 
@@ -133,6 +133,41 @@ class BalancingPolicySpec extends Spec with Logging {
       cluster.myWorkUnits.size().must(be(0))
       cluster.state.get().must(be(NodeState.Started))
     }
+
+    @Test def `drain to count, ensuring that work units pegged to the node are not shut down` {
+      val cluster = makeCluster()
+      val balancer = new DummyBalancingPolicy(cluster, config)
+
+      val workUnits = List("one", "two", "three", "four", "five", "six", "seven")
+      cluster.myWorkUnits.addAll(workUnits)
+      cluster.workUnitsPeggedToMe.add("two")
+      workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
+      workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
+
+      balancer.drainToCount(0)
+
+      Thread.sleep(1100)
+      cluster.myWorkUnits.size().must(be(1))
+      cluster.state.get().must(be(NodeState.Started))
+    }
+
+    @Test def `drain to zero with shutdown, ensuring that work units pegged to the node are shut down` {
+      val cluster = makeCluster()
+      val balancer = new DummyBalancingPolicy(cluster, config)
+
+      val workUnits = List("one", "two", "three", "four", "five", "six", "seven")
+      cluster.myWorkUnits.addAll(workUnits)
+      cluster.workUnitsPeggedToMe.add("two")
+      workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
+      workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
+
+      balancer.drainToCount(0, doShutdown = true)
+
+      Thread.sleep(1100)
+      cluster.myWorkUnits.size().must(be(0))
+      cluster.state.get().must(be(NodeState.Shutdown))
+    }
+
 
     @Test def `drain to count and shutdown` {
       val cluster = makeCluster()

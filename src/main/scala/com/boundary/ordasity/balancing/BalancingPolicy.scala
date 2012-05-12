@@ -176,7 +176,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
 
     // Build a list of work units to hand off.
     val toHandOff = new LinkedList[String]
-    val wuList = cluster.myWorkUnits.toList
+    val wuList = new LinkedList[String](cluster.myWorkUnits -- cluster.workUnitsPeggedToMe)
     for (i <- (0 to amountToDrain - 1))
       if (wuList.size - 1 >= i) toHandOff.add(wuList(i))
 
