@@ -81,6 +81,8 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   val shortName = config.workUnitShortName
   val listGauge = metrics.gauge[String]("my_" + shortName) { myWorkUnits.mkString(", ") }
   val countGauge = metrics.gauge[Int]("my_" + shortName + "_count") { myWorkUnits.size }
+  val connStateGauge = metrics.gauge[String]("zk_connection_state") { connected.get().toString }
+  val nodeStateGauge = metrics.gauge[String]("node_state") { getState().toString }
 
   val state = new AtomicReference[NodeState.Value](NodeState.Fresh)
   def getState() : NodeState.Value = state.get()
@@ -106,6 +108,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       event.getState match {
         case KeeperState.SyncConnected => {
           log.info("ZooKeeper session established.")
+          connected.set(true)
           try {
             if (state.get() != NodeState.Shutdown)
               onConnect()
@@ -219,7 +222,6 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       }
     }
 
-    connected.set(true)
     log.info("Connected to Zookeeper (ID: %s).", myNodeID)
     ZKUtils.ensureOrdasityPaths(zk, name, config.workUnitName, config.workUnitShortName)
 
