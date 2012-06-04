@@ -21,7 +21,7 @@ import com.boundary.ordasity.{ClusterConfig, Cluster}
 
 /**
  * Ordasity's count-based load balancing policy is simple. A node in the cluster
- * will attempt to claim (<n> work work units / <k> nodes + 1) work units. It may
+ * will attempt to claim (<n> work units / <k> nodes + 1) work units. It may
  * be initialized with either a simple ClusterListener or a metered SmartListener.
  */
 class CountBalancingPolicy(cluster: Cluster, config: ClusterConfig) extends BalancingPolicy(cluster, config) {
