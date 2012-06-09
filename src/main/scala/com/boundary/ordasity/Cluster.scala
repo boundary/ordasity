@@ -295,7 +295,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       } else {
         log.warn("Unable to register with Zookeeper on launch. " +
           "Is %s already running on this host? Retrying in 1 second...", name)
-        Thread.sleep(1000)
+	TimeUnit.SECONDS.sleep(1)       
       }
     }
   }
