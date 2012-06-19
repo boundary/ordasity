@@ -185,4 +185,16 @@
         </pluginRepository>
     </pluginRepositories>
 
+    <distributionManagement>
+        <repository>
+            <id>maven.cid1.boundary.com</id>
+            <name>maven.cid1.boundary.com-releases</name>
+            <url>http://maven.cid1.boundary.com/artifactory/internal</url>
+        </repository>
+        <snapshotRepository>
+            <id>maven.cid1.boundary.com</id>
+            <name>maven.cid1.boundary.com-snapshots</name>
+            <url>http://maven.cid1.boundary.com/artifactory/internal</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
