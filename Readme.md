@@ -72,15 +72,15 @@ Let's get started with an example. Here's how to build a clustered service in 25
         <!-- Dependency -->
         <dependency>
             <groupId>com.boundary</groupId>
-            <artifactId>ordasity</artifactId>
-            <version>0.1.8</version>
+            <artifactId>ordasity-scala_2.9.1</artifactId>
+            <version>0.4.5</version>
         </dependency>
 
         <!-- Repo -->
         <repository>
             <id>boundary-public</id>
             <name>Boundary Public</name>
-            <url>http://maven.boundary.com/artifactory/repo</url>
+            <url>http://maven.boundary.com/artifactory/external</url>
         </repository>
 
 ---
