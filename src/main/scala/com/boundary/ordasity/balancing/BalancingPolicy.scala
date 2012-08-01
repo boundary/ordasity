@@ -70,8 +70,8 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
       return true
 
     try {
-      val mapping = Json.parse[Map[String, String]](workUnitData)
-      val pegged = mapping.get(cluster.name)
+      val mapping = Json.parse[Map[String, Any]](workUnitData)
+      val pegged = mapping.get(cluster.name).map(_.asInstanceOf[String])
       if (pegged != null) log.debug("Pegged status for %s: %s.", workUnit, pegged)
       (pegged.isEmpty || pegged.get.equals(cluster.myNodeID))
     } catch {
@@ -93,8 +93,8 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
     }
 
     try {
-      val mapping = Json.parse[Map[String, String]](zkWorkData)
-      val pegged = mapping.get(cluster.name)
+      val mapping = Json.parse[Map[String, Any]](zkWorkData)
+      val pegged = mapping.get(cluster.name).map(_.asInstanceOf[String])
       val isPegged = (pegged.isDefined && (pegged.get.equals(cluster.myNodeID)))
 
       if (isPegged) cluster.workUnitsPeggedToMe.add(workUnitId)
