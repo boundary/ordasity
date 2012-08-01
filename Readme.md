@@ -42,13 +42,10 @@ Ordasity is designed to spread persistent or long-lived workloads across several
 Let's get started with an example. Here's how to build a clustered service in 25 lines of code with Ordasity:
 
     import com.yammer.metrics.scala.Meter
-    import com.twitter.zookeeper.ZooKeeperClient
+    import com.twitter.common.zookeeper.ZooKeeperClient
     import com.boundary.ordasity.{Cluster, ClusterConfig, SmartListener}
 
     class MyService {
-      val config = new ClusterConfig("localhost:2181")
-      val cluster = new Cluster("ServiceName", listener, config)
-
       val listener = new SmartListener {
 		
 		// Called after successfully joining the cluster.
@@ -64,6 +61,9 @@ Let's get started with an example. Here's how to build a clustered service in 25
         def onLeave() { }
       }
 
+      val config = new ClusterConfig("localhost:2181")
+      val cluster = new Cluster("ServiceName", listener, config)
+
       cluster.join()
     }
 
@@ -72,15 +72,15 @@ Let's get started with an example. Here's how to build a clustered service in 25
         <!-- Dependency -->
         <dependency>
             <groupId>com.boundary</groupId>
-            <artifactId>ordasity</artifactId>
-            <version>0.1.8</version>
+            <artifactId>ordasity-scala_2.9.1</artifactId>
+            <version>0.4.5</version>
         </dependency>
 
         <!-- Repo -->
         <repository>
             <id>boundary-public</id>
             <name>Boundary Public</name>
-            <url>http://maven.boundary.com/artifactory/repo</url>
+            <url>http://maven.boundary.com/artifactory/external</url>
         </repository>
 
 ---
