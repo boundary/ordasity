@@ -16,6 +16,7 @@
 
 package com.boundary.ordasity
 
+import com.boundary.ordasity.ExceptionUtils.logExceptions
 import com.codahale.jerkson.Json._
 import com.codahale.logula.Logging
 import com.yammer.metrics.core.Gauge
@@ -270,7 +271,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   def scheduleRebalancing() {
     val interval = config.autoRebalanceInterval
     val runRebalance = new Runnable {
-      def run() {
+      def run() = logExceptions(log) {
         try {
           rebalance()
         } catch {
