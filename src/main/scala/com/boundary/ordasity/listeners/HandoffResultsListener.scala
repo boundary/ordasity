@@ -17,6 +17,7 @@
 package com.boundary.ordasity.listeners
 
 import com.boundary.ordasity._
+import com.boundary.ordasity.ExceptionUtils.logExceptions
 import com.codahale.logula.Logging
 import java.util.concurrent.TimeUnit
 import com.twitter.common.zookeeper.ZooKeeperMap
@@ -80,7 +81,7 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
    */
   def shutdownAfterHandoff(workUnit: String) : Runnable = {
     new Runnable {
-      def run() {
+      def run() = logExceptions(log) {
         log.info("Shutting down %s following handoff to %s.",
           workUnit, cluster.getOrElse(cluster.handoffResults, workUnit, "(None)"))
         cluster.shutdownWork(workUnit, false, true)
@@ -101,7 +102,7 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
       "shutdown work.", workUnit, workUnit, cluster.getOrElse(cluster.workUnitMap, workUnit, "(None)"))
 
     val claimPostHandoffTask = new TimerTask {
-      def run() {
+      def run() = logExceptions(log) {
         val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
         if (ZKUtils.createEphemeral(cluster.zk, path, cluster.myNodeID) || cluster.znodeIsMe(path)) {
           ZKUtils.delete(cluster.zk, "/" + cluster.name + "/handoff-result/" + workUnit)

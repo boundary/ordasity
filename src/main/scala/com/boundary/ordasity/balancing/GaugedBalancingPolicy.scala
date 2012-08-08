@@ -19,6 +19,7 @@ package com.boundary.ordasity.balancing
 import collection.JavaConversions._
 import overlock.atomicmap.AtomicMap
 import com.boundary.ordasity._
+import com.boundary.ordasity.ExceptionUtils.logExceptions
 import com.codahale.jerkson.Json
 import java.util.concurrent.{TimeUnit, ScheduledFuture}
 import com.yammer.metrics.core.Gauge
@@ -112,7 +113,7 @@ class GaugedBalancingPolicy(cluster: Cluster, config: ClusterConfig)
    */
   private def scheduleLoadTicks() {
     val sendLoadToZookeeper = new Runnable {
-      def run() {
+      def run() = logExceptions(log) {
         try {
           gauges.foreach { case(workUnit, gauge) =>
             val loadPath = "/%s/meta/workload/%s".format(cluster.name, workUnit)
@@ -169,7 +170,7 @@ class GaugedBalancingPolicy(cluster: Cluster, config: ClusterConfig)
   def buildDrainTask(drainList: LinkedList[String], drainInterval: Int, useHandoff: Boolean,
       currentLoad: Double) : TimerTask = {
     new TimerTask {
-      def run() {
+      def run(): Unit = logExceptions(log) {
         if (drainList.isEmpty || myLoad <= evenDistribution) {
           log.info("Finished the drain list, or my load is now less than an even distribution. " +
             "Stopping rebalance. Remaining work units: %s", drainList.mkString(", "))
