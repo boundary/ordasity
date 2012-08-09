@@ -24,6 +24,7 @@ import collection.JavaConversions._
 import org.apache.zookeeper.ZooKeeper
 import com.twitter.common.zookeeper.ZooKeeperClient
 import java.util.concurrent.ScheduledFuture
+import com.yammer.metrics.core.Gauge
 import com.yammer.metrics.scala.Meter
 import java.util.{LinkedList, HashMap, UUID}
 
@@ -107,9 +108,9 @@ class MeteredBalancingPolicySpec extends Spec with Logging {
       val balancer = new MeteredBalancingPolicy(cluster, config)
       cluster.balancingPolicy = balancer
 
-      balancer.meters.put("foo", mock[Meter])
+      balancer.gauges.put("foo", mock[Gauge[Double]])
       balancer.onShutdownWork("foo")
-      balancer.meters.contains("foo").must(be(false))
+      balancer.gauges.contains("foo").must(be(false))
     }
 
     @Test def `claim work` {

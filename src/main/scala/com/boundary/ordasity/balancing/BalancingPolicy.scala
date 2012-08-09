@@ -20,6 +20,7 @@ import collection.JavaConversions._
 import com.codahale.logula.Logging
 import com.codahale.jerkson.Json
 import com.boundary.ordasity.{ZKUtils, NodeState, ClusterConfig, Cluster}
+import com.boundary.ordasity.ExceptionUtils.logExceptions
 import com.yammer.metrics.scala.Instrumented
 import java.util.{TimerTask, LinkedList}
 import java.util.concurrent.TimeUnit
@@ -70,8 +71,8 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
       return true
 
     try {
-      val mapping = Json.parse[Map[String, String]](workUnitData)
-      val pegged = mapping.get(cluster.name)
+      val mapping = Json.parse[Map[String, Any]](workUnitData)
+      val pegged = mapping.get(cluster.name).map(_.asInstanceOf[String])
       if (pegged != null) log.debug("Pegged status for %s: %s.", workUnit, pegged)
       (pegged.isEmpty || pegged.get.equals(cluster.myNodeID))
     } catch {
@@ -93,8 +94,8 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
     }
 
     try {
-      val mapping = Json.parse[Map[String, String]](zkWorkData)
-      val pegged = mapping.get(cluster.name)
+      val mapping = Json.parse[Map[String, Any]](zkWorkData)
+      val pegged = mapping.get(cluster.name).map(_.asInstanceOf[String])
       val isPegged = (pegged.isDefined && (pegged.get.equals(cluster.myNodeID)))
 
       if (isPegged) cluster.workUnitsPeggedToMe.add(workUnitId)
@@ -183,7 +184,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
     val drainInterval = ((config.drainTime.toDouble / toHandOff.size) * 1000).intValue()
 
     val handoffTask = new TimerTask {
-      def run() {
+      def run(): Unit = logExceptions(log) {
         if (toHandOff.isEmpty) {
           if (targetCount == 0 && doShutdown) cluster.completeShutdown()
           return

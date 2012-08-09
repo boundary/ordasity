@@ -27,6 +27,7 @@ class ClusterConfig {
   @JsonProperty var autoRebalanceInterval = 60
   @JsonProperty var drainTime = 60
   @JsonProperty var useSmartBalancing = false
+  @JsonProperty var useSmartGaugedBalancing = false
   @JsonProperty var zkTimeout = 3000
   @JsonProperty var workUnitName = "work-units"
   @JsonProperty var workUnitShortName = "work"
@@ -56,6 +57,11 @@ class ClusterConfig {
 
   def useSmartBalancing(to: Boolean) : ClusterConfig = {
     useSmartBalancing = to
+    this
+  }
+
+  def useSmartGaugedBalancing(to: Boolean) : ClusterConfig = {
+    useSmartGaugedBalancing = to
     this
   }
 
