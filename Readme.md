@@ -41,6 +41,7 @@ Ordasity is designed to spread persistent or long-lived workloads across several
 
 Let's get started with an example. Here's how to build a clustered service in 25 lines of code with Ordasity:
 
+```scala
     import com.yammer.metrics.scala.Meter
     import com.twitter.common.zookeeper.ZooKeeperClient
     import com.boundary.ordasity.{Cluster, ClusterConfig, SmartListener}
@@ -66,9 +67,11 @@ Let's get started with an example. Here's how to build a clustered service in 25
 
       cluster.join()
     }
+```
 
 **Maven** folks and friends with compatible packaging systems, here's the info for your pom.xml:
 
+```xml
         <!-- Dependency -->
         <dependency>
             <groupId>com.boundary</groupId>
@@ -82,6 +85,7 @@ Let's get started with an example. Here's how to build a clustered service in 25
             <name>Boundary Public</name>
             <url>http://maven.boundary.com/artifactory/external</url>
         </repository>
+```
 
 ---
 
@@ -102,10 +106,12 @@ Ordasity supports two work claiming strategies: "simple" (count-based), and "sma
 #### Count-Based Distribution
 The count-based distribution strategy is simple. When in effect, each node in the cluster will attempt to claim its fair share of available work units according to the following formula:
 
+```scala
       val maxToClaim = {
         if (allWorkUnits.size <= 1) allWorkUnits.size
         else (allWorkUnits.size / nodeCount.toDouble).ceil
       }
+```
 
 If zero or one work units are present, the node will attempt to claim up to one work unit. Otherwise, the node will attempt to claim up to the number of work units divided by the number of active nodes.
 
@@ -116,6 +122,7 @@ Ordasity's load-based distribution strategy assumes that all work units are not 
 ##### Meters Measure Load
 When you enable smart balancing and initialize Ordasity with a SmartListener, you get back a "meter" to mark when work occurs. Here's a simple, contrived example:
 
+```scala
     val listener = new SmartListener {
       ...
       def startWork(workUnit: String, meter: Meter) = {
@@ -135,6 +142,7 @@ When you enable smart balancing and initialize Ordasity with a SmartListener, yo
   
       ...
     }
+```
 
 Ordasity uses this meter to determine how much "work" each work unit in the cluster represents. If the application were a database or frontend to a data service, you might mark the meter each time a query is performed. In a messaging system, you'd mark it each time a message is sent or received. In an event stream processing system, you'd mark it each time an event is processed. You get the idea.
 
@@ -143,9 +151,11 @@ Ordasity uses this meter to determine how much "work" each work unit in the clus
 ##### Knowing the Load Lets us Balance
 Ordasity checks the meters once per minute (configurable) and updates this information in Zookeeper. The "load map" determines the actual load represented by each work unit. All nodes watch the cluster's "load map" and are notified via Zookeeper's Atomic Broadcast mechanism when this changes. Each node in the cluster will attempt to claim its fair share of available work units according to the following formula:
 
+```scala
     def evenDistribution() : Double = {
       loadMap.values.sum / activeNodeSize().toDouble
     }
+```
 
 As the number of nodes or the load of individual work units change, each node's idea of an "even distribution" changes as well. Using this "even distribution" value, each node will choose to claim additional work, or in the event of a rebalance, drain its workload to other nodes if it's processing more than its fair share.
 
@@ -157,14 +167,17 @@ Ordasity supports automatic and manual rebalancing to even out the cluster's loa
 
 To trigger a manual rebalance on all nodes, touch "/service-name/meta/rebalance" in Zookeeper. However, automatic rebalancing is preferred. To enable it, just turn it on in your cluster config:
 
+```scala
     val config = new ClusterConfig("localhost:2181").
       setAutoRebalance(true).
       setRebalanceInterval(60 * 60) // One hour
+```
 
 As a masterless service, the rebalance process is handled uncoordinated by the node itself. The rebalancing logic is very simple. If a node has more than its fair share of work when a rebalance is triggered, it will drain or release this work to other nodes in the cluster. As the cluster sees this work become available, lighter-loaded nodes will claim it (or receive handoff) and begin processing.
 
 If you're using **count-based distribution**, it looks like this:
 
+```scala
     def simpleRebalance() {
       val target = fairShare()
 
@@ -173,9 +186,11 @@ If you're using **count-based distribution**, it looks like this:
         drainToCount(target)
       }
     }
+```
 
 If you're using **load-based distribution**, it looks like this:
 
+```scala
     def smartRebalance() {
       val target = evenDistribution()
 
@@ -184,6 +199,7 @@ If you're using **load-based distribution**, it looks like this:
         drainToLoad(target.longValue)
       }
     }
+```
 
 ---
 
@@ -199,7 +215,9 @@ The *drainToCount* and *drainToLoad* strategies invoked by a rebalance will rele
 
 Ordasity allows you to configure the period of time for a drain to complete: 
 
+```scala
     val config = new ClusterConfig("localhost:2181").setDrainTime(60) // 60 Seconds
+```
 
 When a drain is initiated, Ordasity will pace the release of work units over the time specified. If 15 work units were to be released over a 60-second period, the library would release one every four seconds.
 
@@ -212,9 +230,11 @@ When Handoff is enabled, Ordasity will allow another node to begin processing fo
 
 To enable it, just turn it on in your ClusterConfig:
 
+```scala
     val clusterConfig = new ClusterConfig("localhost:2181").
       setUseSoftHandoff(true).
       setHandoffShutdownDelay(10) // Seconds
+```
 
 The handoff process is fairly straightforward. When a node has decided to release a work unit (either due to a rebalance or because it is being drained for shutdown), it creates an entry in Zookeeper at /service-name/handoff-requests. Following their count-based or load-based claiming policies, other nodes will claim the work being handed off by creating an entry at /service-name/handoff-results.
 
