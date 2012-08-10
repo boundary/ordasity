@@ -242,6 +242,35 @@ When a node has successfully accepted handoff by creating this entry, the new ow
 
 ---
 
+### Registering work units
+
+Work units are registered by creating ZooKeeper nodes under `/work-units`. (If you have set `Cluster.workUnitName` to a custom value then this ZooKeeper path will change accordingly.)
+
+The name of the work unit is the same as the name of the ZooKeeper node. So, for example to create 3 work units called "a", "b", and "c", your ZK directory should look like this:
+
+    /work-units
+        /a
+        /b
+        /c
+
+Any String that is a valid ZK node name can be used as a work unit name. This is the string that is passed to your `ClusterListener` methods.
+
+The ZK node data must be a JSON-encoded `Map[String, String]`. This may be simply an empty map (`{}`), or you may want to include information about the work unit, for use by your cluster nodes.
+
+Note that Ordasity does not pass the ZK node data to your `ClusterListener`, so you will have to retrieve it yourself using the ZK client. It also does not provide a helper to deserialize the JSON string.
+
+#### Pegging
+
+The ZK node data can also be used for pegging work units to specific nodes. 
+
+To do this, include a key-value pair of the form `"servicename": "nodeId"` in the JSON map. 
+
+Here `servicename` is the name of the cluster, as specified in `Cluster`'s constructor, and `nodeId` is the unique ID of a node, as set in `ClusterConfig`.
+
+For example to peg a work unit to Node `node123` in cluster `mycluster`, set the ZK node's data to `{"mycluster": "node123"}`.
+
+---
+
 ### Wrapping Up
 
 So, that's Ordasity! We hope you enjoy using it to build reliable distributed services quickly.
