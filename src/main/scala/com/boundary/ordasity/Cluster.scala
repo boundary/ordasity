@@ -93,9 +93,16 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
    * Joins the cluster, claims work, and begins operation.
    */
   def join() : String = {
+    join(None)
+  }
+
+  /**
+   * Joins the cluster using a custom zk client, claims work, and begins operation.
+   */
+  def join(injectedClient: Option[ZooKeeperClient]) : String = {
     state.get() match {
-      case NodeState.Fresh    => connect()
-      case NodeState.Shutdown => connect()
+      case NodeState.Fresh    => connect(injectedClient)
+      case NodeState.Shutdown => connect(injectedClient)
       case NodeState.Draining => log.warn("'join' called while draining; ignoring.")
       case NodeState.Started  => log.warn("'join' called after started; ignoring.")
     }
