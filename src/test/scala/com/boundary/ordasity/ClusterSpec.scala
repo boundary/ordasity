@@ -391,7 +391,6 @@ class ClusterSpec extends Spec with Logging {
       verify.one(mockClusterListener).onJoin(any)
       verify.one(policy).onConnect()
       cluster.state.get().must(be(NodeState.Started))
-      cluster.watchesRegistered.set(true)
     }
 
     @Test def `connect` {
@@ -413,7 +412,6 @@ class ClusterSpec extends Spec with Logging {
       verify.one(mockClusterListener).onJoin(any)
       verify.one(policy).onConnect()
       cluster.state.get().must(be(NodeState.Started))
-      cluster.watchesRegistered.set(true)
     }
 
     @Test def `join when draining` {
@@ -459,7 +457,6 @@ class ClusterSpec extends Spec with Logging {
       verify.one(mockClusterListener).onJoin(any)
       verify.one(policy).onConnect()
       cluster.state.get().must(be(NodeState.Started))
-      cluster.watchesRegistered.set(true)
     }
 
     @Test def `join after shutdown` {
@@ -479,7 +476,6 @@ class ClusterSpec extends Spec with Logging {
       verify.one(mockClusterListener).onJoin(any)
       verify.one(policy).onConnect()
       cluster.state.get().must(be(NodeState.Started))
-      cluster.watchesRegistered.set(true)
     }
 
 
