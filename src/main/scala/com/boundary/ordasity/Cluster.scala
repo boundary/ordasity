@@ -170,13 +170,19 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
         new InetSocketAddress(host, port)
       }.toList
 
-      log.info("Connecting to hosts: %s", hosts.toString)
-      zk = injectedClient.getOrElse(
-        new ZooKeeperClient(Amount.of(config.zkTimeout, Time.MILLISECONDS), hosts))
+      zk = injectedClient match {
+        case Some(zk) =>
+          log.info("Using user-supplied ZooKeeper")
+          zk
+        case None =>
+          log.info("Using my own ZooKeeper (hosts: %s)", hosts)
+          new ZooKeeperClient(Amount.of(config.zkTimeout, Time.MILLISECONDS), hosts)
+      }
       log.info("Registering connection watcher.")
       zk.register(connectionWatcher)
     }
 
+    log.info("Ensuring ZooKeeper connection is live")
     zk.get()
   }
 
