@@ -421,54 +421,104 @@ class ClusterSpec extends Spec with Logging {
       val policy = mock[BalancingPolicy]
       cluster.balancingPolicy = policy
 
-      // Pretend that we get a SyncConnected event during our register call (synchronously)
-      mockZKClient.register(any).answersWith { _.getArguments match {
-        case Array(watcher: Watcher) => watcher.process(new WatchedEvent(null, KeeperState.SyncConnected, null))
-      }}
-
       // Pretend that the paths exist for any ZooKeeperMaps we might create
       mockZK.exists(any[String], any[Watcher]).returns(mock[Stat])
 
-      @Test def `when draining` {
-        cluster.setState(NodeState.Draining)
-        cluster.join(Some(mockZKClient)).must(be(NodeState.Draining.toString))
+      class `with not-yet-connected zk client` {
 
-        // Should no-op if draining.
-        verify.no(mockClusterListener).onJoin(any)
-        verify.no(policy).onConnect()
-        cluster.state.get().must(be(NodeState.Draining))
-        cluster.watchesRegistered.set(false)
+        // Pretend that we get a SyncConnected event during our register call (synchronously)
+        mockZKClient.register(any).answersWith { _.getArguments match {
+          case Array(watcher: Watcher) => watcher.process(new WatchedEvent(null, KeeperState.SyncConnected, null))
+        }}
+
+        @Test def `when fresh` {
+          cluster.setState(NodeState.Fresh)
+          cluster.join(Some(mockZKClient)).must(be(NodeState.Started.toString))
+
+          // Apply same verifications as connect, as all of these should be called.
+          verify.one(mockClusterListener).onJoin(any)
+          verify.one(policy).onConnect()
+          cluster.state.get().must(be(NodeState.Started))
+        }
+
+        @Test def `after shutdown` {
+          cluster.setState(NodeState.Shutdown)
+          cluster.join(Some(mockZKClient)).must(be(NodeState.Shutdown.toString))
+
+          // Should no-op if shutdown.
+          verify.no(mockClusterListener).onJoin(any)
+          verify.no(policy).onConnect()
+          cluster.state.get().must(be(NodeState.Shutdown))
+        }
+
+        @Test def `when draining` {
+          cluster.setState(NodeState.Draining)
+          cluster.join(Some(mockZKClient)).must(be(NodeState.Draining.toString))
+
+          // Should no-op if draining.
+          verify.no(mockClusterListener).onJoin(any)
+          verify.no(policy).onConnect()
+          cluster.state.get().must(be(NodeState.Draining))
+          cluster.watchesRegistered.set(false)
+        }
+
+        @Test def `after started` {
+          cluster.setState(NodeState.Started)
+          cluster.join(Some(mockZKClient)).must(be(NodeState.Started.toString))
+
+          // Should no-op if already started.
+          verify.no(mockClusterListener).onJoin(any)
+          verify.no(policy).onConnect()
+          cluster.state.get().must(be(NodeState.Started))
+          cluster.watchesRegistered.set(false)
+        }
       }
 
-      @Test def `after started` {
-        cluster.setState(NodeState.Started)
-        cluster.join(Some(mockZKClient)).must(be(NodeState.Started.toString))
+      class `with already connected zk client` {
 
-        // Should no-op if already started.
-        verify.no(mockClusterListener).onJoin(any)
-        verify.no(policy).onConnect()
-        cluster.state.get().must(be(NodeState.Started))
-        cluster.watchesRegistered.set(false)
-      }
+        // We don't get a SyncConnected event during our register call, since the zk client is already connected
 
-      @Test def `when fresh` {
-        cluster.setState(NodeState.Fresh)
-        cluster.join(Some(mockZKClient)).must(be(NodeState.Started.toString))
+        @Test def `when fresh` {
+          cluster.setState(NodeState.Fresh)
+          cluster.join(Some(mockZKClient)).must(be(NodeState.Started.toString))
 
-        // Apply same verifications as connect, as all of these should be called.
-        verify.one(mockClusterListener).onJoin(any)
-        verify.one(policy).onConnect()
-        cluster.state.get().must(be(NodeState.Started))
-      }
+          // Apply same verifications as connect, as all of these should be called.
+          verify.one(mockClusterListener).onJoin(any)
+          verify.one(policy).onConnect()
+          cluster.state.get().must(be(NodeState.Started))
+        }
 
-      @Test def `after shutdown` {
-        cluster.setState(NodeState.Shutdown)
-        cluster.join(Some(mockZKClient)).must(be(NodeState.Shutdown.toString))
+        @Test def `after shutdown` {
+          cluster.setState(NodeState.Shutdown)
+          cluster.join(Some(mockZKClient)).must(be(NodeState.Shutdown.toString))
 
-        // Should no-op if shutdown.
-        verify.no(mockClusterListener).onJoin(any)
-        verify.no(policy).onConnect()
-        cluster.state.get().must(be(NodeState.Shutdown))
+          // Should no-op if shutdown.
+          verify.no(mockClusterListener).onJoin(any)
+          verify.no(policy).onConnect()
+          cluster.state.get().must(be(NodeState.Shutdown))
+        }
+
+        @Test def `when draining` {
+          cluster.setState(NodeState.Draining)
+          cluster.join(Some(mockZKClient)).must(be(NodeState.Draining.toString))
+
+          // Should no-op if draining.
+          verify.no(mockClusterListener).onJoin(any)
+          verify.no(policy).onConnect()
+          cluster.state.get().must(be(NodeState.Draining))
+          cluster.watchesRegistered.set(false)
+        }
+
+        @Test def `after started` {
+          cluster.setState(NodeState.Started)
+          cluster.join(Some(mockZKClient)).must(be(NodeState.Started.toString))
+
+          // Should no-op if already started.
+          verify.no(mockClusterListener).onJoin(any)
+          verify.no(policy).onConnect()
+          cluster.state.get().must(be(NodeState.Started))
+          cluster.watchesRegistered.set(false)
+        }
       }
     }
 

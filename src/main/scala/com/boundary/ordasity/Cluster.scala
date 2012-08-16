@@ -178,11 +178,16 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
           log.info("Using my own ZooKeeper (hosts: %s)", hosts)
           new ZooKeeperClient(Amount.of(config.zkTimeout, Time.MILLISECONDS), hosts)
       }
+
+      log.info("Ensuring ZooKeeper connection is live")
+      zk.get()
+      log.info("Simulating newly established session to kickoff cluster startup")
+      connectionWatcher.process(new WatchedEvent(null, KeeperState.SyncConnected, null))
       log.info("Registering connection watcher.")
       zk.register(connectionWatcher)
     }
 
-    log.info("Ensuring ZooKeeper connection is live")
+    log.info("Ensuring ZooKeeper connection is live (still)")
     zk.get()
   }
 
