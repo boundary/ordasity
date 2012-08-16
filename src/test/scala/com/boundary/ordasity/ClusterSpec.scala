@@ -272,13 +272,13 @@ class ClusterSpec extends Spec with Logging {
 
       cluster.registerWatchers()
 
-      cluster.nodes.isInstanceOf[ZooKeeperMap[String]].must(be(true))
-      cluster.allWorkUnits.isInstanceOf[ZooKeeperMap[String]].must(be(true))
-      cluster.workUnitMap.isInstanceOf[ZooKeeperMap[String]].must(be(true))
+      cluster.nodes.isInstanceOf[ZooKeeperMap[_]].must(be(true))
+      cluster.allWorkUnits.isInstanceOf[ZooKeeperMap[_]].must(be(true))
+      cluster.workUnitMap.isInstanceOf[ZooKeeperMap[_]].must(be(true))
 
       // Not using soft handoff (TODO: assert ZKMap w/soft handoff on)
-      cluster.handoffRequests.isInstanceOf[HashMap[String, String]].must(be(true))
-      cluster.handoffResults.isInstanceOf[HashMap[String, String]].must(be(true))
+      cluster.handoffRequests.isInstanceOf[HashMap[_, _]].must(be(true))
+      cluster.handoffResults.isInstanceOf[HashMap[_, _]].must(be(true))
 
       // TODO: Test loadMap isinstanceof zkmap with smart balancing on.
     }
