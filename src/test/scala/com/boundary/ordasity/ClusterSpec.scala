@@ -26,7 +26,8 @@ import com.codahale.jerkson.Json
 import org.apache.zookeeper.data.Stat
 import org.apache.zookeeper.ZooDefs.Ids
 import com.twitter.common.zookeeper.{ZooKeeperMap, ZooKeeperClient}
-import org.apache.zookeeper.{Watcher, CreateMode, ZooKeeper}
+import org.apache.zookeeper.{Watcher, CreateMode, ZooKeeper, WatchedEvent}
+import org.apache.zookeeper.Watcher.Event.KeeperState
 
 class ClusterSpec extends Spec with Logging {
   Logging.configure()
@@ -398,16 +399,21 @@ class ClusterSpec extends Spec with Logging {
       val policy = mock[BalancingPolicy]
       cluster.balancingPolicy = policy
 
+      // Pretend that we get a SyncConnected event during our register call (synchronously)
+      mockZKClient.register(any).answersWith { _.getArguments match {
+        case Array(watcher: Watcher) => watcher.process(new WatchedEvent(null, KeeperState.SyncConnected, null))
+      }}
+
       // Pretend that the paths exist for the ZooKeeperMaps we're creating
       mockZK.exists(any[String], any[Watcher]).returns(mock[Stat])
 
       cluster.connect(Some(mockZKClient))
 
       // Apply same verifications as onConnect, as all of these should be called.
-      //verify.one(mockClusterListener).onJoin(any)
-      //verify.one(policy).onConnect()
-      //cluster.state.get().must(be(NodeState.Started))
-      //cluster.watchesRegistered.set(true)
+      verify.one(mockClusterListener).onJoin(any)
+      verify.one(policy).onConnect()
+      cluster.state.get().must(be(NodeState.Started))
+      cluster.watchesRegistered.set(true)
     }
 
     @Test def `join` {
