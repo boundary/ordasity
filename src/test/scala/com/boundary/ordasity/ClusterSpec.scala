@@ -448,7 +448,7 @@ class ClusterSpec extends Spec with Logging {
       val policy = mock[BalancingPolicy]
       cluster.balancingPolicy = policy
 
-     // Pretend that the paths exist for the ZooKeeperMaps we're creating
+      // Pretend that the paths exist for the ZooKeeperMaps we're creating
       mockZK.exists(any[String], any[Watcher]).returns(mock[Stat])
 
       cluster.setState(NodeState.Shutdown)
