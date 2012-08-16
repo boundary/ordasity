@@ -416,7 +416,7 @@ class ClusterSpec extends Spec with Logging {
       cluster.watchesRegistered.set(true)
     }
 
-    @Test def `join` {
+    @Test def `join when draining` {
       val (mockZK, mockZKClient) = getMockZK()
       cluster.zk = mockZKClient
 
@@ -427,11 +427,27 @@ class ClusterSpec extends Spec with Logging {
       cluster.setState(NodeState.Draining)
       cluster.join().must(be(NodeState.Draining.toString))
       verify.exactly(0)(mockZKClient).get()
+    }
+
+    @Test def `join after started` {
+      val (mockZK, mockZKClient) = getMockZK()
+      cluster.zk = mockZKClient
+
+      val policy = mock[BalancingPolicy]
+      cluster.balancingPolicy = policy
 
       // Should no-op if started.
       cluster.setState(NodeState.Started)
       cluster.join().must(be(NodeState.Started.toString))
       verify.exactly(0)(mockZKClient).get()
+    }
+
+    @Test def `join when fresh` {
+      val (mockZK, mockZKClient) = getMockZK()
+      cluster.zk = mockZKClient
+
+      val policy = mock[BalancingPolicy]
+      cluster.balancingPolicy = policy
 
       // Pretend that the paths exist for the ZooKeeperMaps we're creating
       mockZK.exists(any[String], any[Watcher]).returns(mock[Stat])
@@ -445,7 +461,6 @@ class ClusterSpec extends Spec with Logging {
       cluster.state.get().must(be(NodeState.Started))
       cluster.watchesRegistered.set(true)
     }
-
 
     @Test def `join after shutdown` {
       val (mockZK, mockZKClient) = getMockZK()
