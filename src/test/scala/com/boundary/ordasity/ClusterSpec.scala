@@ -409,88 +409,88 @@ class ClusterSpec extends Spec with Logging {
       //cluster.state.get().must(be(NodeState.Started))
       //cluster.watchesRegistered.set(true)
     }
+
+    @Test def `join` {
+      val (mockZK, mockZKClient) = getMockZK()
+      cluster.zk = mockZKClient
+
+      val policy = mock[BalancingPolicy]
+      cluster.balancingPolicy = policy
+
+      // Should no-op if draining.
+      cluster.setState(NodeState.Draining)
+      cluster.join().must(be(NodeState.Draining.toString))
+      verify.exactly(0)(mockZKClient).get()
+
+      // Should no-op if started.
+      cluster.setState(NodeState.Started)
+      cluster.join().must(be(NodeState.Started.toString))
+      verify.exactly(0)(mockZKClient).get()
+
+      // Pretend that the paths exist for the ZooKeeperMaps we're creating
+      mockZK.exists(any[String], any[Watcher]).returns(mock[Stat])
+
+      cluster.setState(NodeState.Fresh)
+      cluster.join().must(be(NodeState.Started.toString))
+
+      // Apply same verifications as connect, as all of these should be called.
+      verify.one(mockClusterListener).onJoin(any)
+      verify.one(policy).onConnect()
+      cluster.state.get().must(be(NodeState.Started))
+      cluster.watchesRegistered.set(true)
+    }
+
+
+    @Test def `join after shutdown` {
+      val (mockZK, mockZKClient) = getMockZK()
+      cluster.zk = mockZKClient
+
+      val policy = mock[BalancingPolicy]
+      cluster.balancingPolicy = policy
+
+     // Pretend that the paths exist for the ZooKeeperMaps we're creating
+      mockZK.exists(any[String], any[Watcher]).returns(mock[Stat])
+
+      cluster.setState(NodeState.Shutdown)
+      cluster.join().must(be(NodeState.Started.toString))
+
+      // Apply same verifications as connect, as all of these should be called.
+      verify.one(mockClusterListener).onJoin(any)
+      verify.one(policy).onConnect()
+      cluster.state.get().must(be(NodeState.Started))
+      cluster.watchesRegistered.set(true)
+    }
+
+
+    @Test def `cluster constructor` {
+      val cluster = new Cluster("foo", mockClusterListener, config)
+      cluster.name.must(be("foo"))
+      cluster.listener.must(be(mockClusterListener))
+    }
+
+
+    @Test def `getOrElse String` {
+      val foo = new HashMap[String, String]
+      foo.put("foo", "bar")
+
+      cluster.getOrElse(foo, "foo", "taco").must(be("bar"))
+      cluster.getOrElse(foo, "bar", "taco").must(be("taco"))
+    }
+
+    @Test def `getOrElse Double` {
+      val foo = new HashMap[String, Double]
+      foo.put("foo", 0.01d)
+      cluster.getOrElse(foo, "foo", 0.02d).must(be(0.01d))
+      cluster.getOrElse(foo, "bar", 0.02d).must(be(0.02d))
+    }
+
+    def getMockZK() : (ZooKeeper, ZooKeeperClient) = {
+      val mockZK = mock[ZooKeeper]
+      val mockZKClient = mock[ZooKeeperClient]
+      mockZKClient.get().returns(mockZK)
+      (mockZK, mockZKClient)
+    }
+
   }
-
-  @Test def `join` {
-    val (mockZK, mockZKClient) = getMockZK()
-    cluster.zk = mockZKClient
-
-    val policy = mock[BalancingPolicy]
-    cluster.balancingPolicy = policy
-
-    // Should no-op if draining.
-    cluster.setState(NodeState.Draining)
-    cluster.join().must(be(NodeState.Draining.toString))
-    verify.exactly(0)(mockZKClient).get()
-
-    // Should no-op if started.
-    cluster.setState(NodeState.Started)
-    cluster.join().must(be(NodeState.Started.toString))
-    verify.exactly(0)(mockZKClient).get()
-
-    // Pretend that the paths exist for the ZooKeeperMaps we're creating
-    mockZK.exists(any[String], any[Watcher]).returns(mock[Stat])
-
-    cluster.setState(NodeState.Fresh)
-    cluster.join().must(be(NodeState.Started.toString))
-
-    // Apply same verifications as connect, as all of these should be called.
-    verify.one(mockClusterListener).onJoin(any)
-    verify.one(policy).onConnect()
-    cluster.state.get().must(be(NodeState.Started))
-    cluster.watchesRegistered.set(true)
-  }
-
-
-  @Test def `join after shutdown` {
-    val (mockZK, mockZKClient) = getMockZK()
-    cluster.zk = mockZKClient
-
-    val policy = mock[BalancingPolicy]
-    cluster.balancingPolicy = policy
-
-   // Pretend that the paths exist for the ZooKeeperMaps we're creating
-    mockZK.exists(any[String], any[Watcher]).returns(mock[Stat])
-
-    cluster.setState(NodeState.Shutdown)
-    cluster.join().must(be(NodeState.Started.toString))
-
-    // Apply same verifications as connect, as all of these should be called.
-    verify.one(mockClusterListener).onJoin(any)
-    verify.one(policy).onConnect()
-    cluster.state.get().must(be(NodeState.Started))
-    cluster.watchesRegistered.set(true)
-  }
-
-
-  @Test def `cluster constructor` {
-    val cluster = new Cluster("foo", mockClusterListener, config)
-    cluster.name.must(be("foo"))
-    cluster.listener.must(be(mockClusterListener))
-  }
-
-
-  @Test def `getOrElse String` {
-    val foo = new HashMap[String, String]
-    foo.put("foo", "bar")
-
-    cluster.getOrElse(foo, "foo", "taco").must(be("bar"))
-    cluster.getOrElse(foo, "bar", "taco").must(be("taco"))
-  }
-
-  @Test def `getOrElse Double` {
-    val foo = new HashMap[String, Double]
-    foo.put("foo", 0.01d)
-    cluster.getOrElse(foo, "foo", 0.02d).must(be(0.01d))
-    cluster.getOrElse(foo, "bar", 0.02d).must(be(0.02d))
-  }
-
-  def getMockZK() : (ZooKeeper, ZooKeeperClient) = {
-    val mockZK = mock[ZooKeeper]
-    val mockZKClient = mock[ZooKeeperClient]
-    mockZKClient.get().returns(mockZK)
-    (mockZK, mockZKClient)
-  }
-
 }
 
