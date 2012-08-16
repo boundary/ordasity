@@ -421,10 +421,19 @@ class ClusterSpec extends Spec with Logging {
       val policy = mock[BalancingPolicy]
       cluster.balancingPolicy = policy
 
-      // Should no-op if draining.
+      // Pretend that we get a SyncConnected event during our register call (synchronously)
+      mockZKClient.register(any).answersWith { _.getArguments match {
+        case Array(watcher: Watcher) => watcher.process(new WatchedEvent(null, KeeperState.SyncConnected, null))
+      }}
+
       cluster.setState(NodeState.Draining)
-      cluster.join().must(be(NodeState.Draining.toString))
-      verify.exactly(0)(mockZKClient).get()
+      cluster.join(Some(mockZKClient)).must(be(NodeState.Draining.toString))
+
+      // Should no-op if draining.
+      verify.no(mockClusterListener).onJoin(any)
+      verify.no(policy).onConnect()
+      cluster.state.get().must(be(NodeState.Draining))
+      cluster.watchesRegistered.set(false)
     }
 
     @Test def `join after started` {
@@ -434,10 +443,19 @@ class ClusterSpec extends Spec with Logging {
       val policy = mock[BalancingPolicy]
       cluster.balancingPolicy = policy
 
-      // Should no-op if started.
+      // Pretend that we get a SyncConnected event during our register call (synchronously)
+      mockZKClient.register(any).answersWith { _.getArguments match {
+        case Array(watcher: Watcher) => watcher.process(new WatchedEvent(null, KeeperState.SyncConnected, null))
+      }}
+
       cluster.setState(NodeState.Started)
-      cluster.join().must(be(NodeState.Started.toString))
-      verify.exactly(0)(mockZKClient).get()
+      cluster.join(Some(mockZKClient)).must(be(NodeState.Started.toString))
+
+      // Should no-op if already started.
+      verify.no(mockClusterListener).onJoin(any)
+      verify.no(policy).onConnect()
+      cluster.state.get().must(be(NodeState.Started))
+      cluster.watchesRegistered.set(false)
     }
 
     @Test def `join when fresh` {
@@ -447,11 +465,16 @@ class ClusterSpec extends Spec with Logging {
       val policy = mock[BalancingPolicy]
       cluster.balancingPolicy = policy
 
+      // Pretend that we get a SyncConnected event during our register call (synchronously)
+      mockZKClient.register(any).answersWith { _.getArguments match {
+        case Array(watcher: Watcher) => watcher.process(new WatchedEvent(null, KeeperState.SyncConnected, null))
+      }}
+
       // Pretend that the paths exist for the ZooKeeperMaps we're creating
       mockZK.exists(any[String], any[Watcher]).returns(mock[Stat])
 
       cluster.setState(NodeState.Fresh)
-      cluster.join().must(be(NodeState.Started.toString))
+      cluster.join(Some(mockZKClient)).must(be(NodeState.Started.toString))
 
       // Apply same verifications as connect, as all of these should be called.
       verify.one(mockClusterListener).onJoin(any)
@@ -466,16 +489,18 @@ class ClusterSpec extends Spec with Logging {
       val policy = mock[BalancingPolicy]
       cluster.balancingPolicy = policy
 
-      // Pretend that the paths exist for the ZooKeeperMaps we're creating
-      mockZK.exists(any[String], any[Watcher]).returns(mock[Stat])
+      // Pretend that we get a SyncConnected event during our register call (synchronously)
+      mockZKClient.register(any).answersWith { _.getArguments match {
+        case Array(watcher: Watcher) => watcher.process(new WatchedEvent(null, KeeperState.SyncConnected, null))
+      }}
 
       cluster.setState(NodeState.Shutdown)
-      cluster.join().must(be(NodeState.Started.toString))
+      cluster.join(Some(mockZKClient)).must(be(NodeState.Shutdown.toString))
 
-      // Apply same verifications as connect, as all of these should be called.
-      verify.one(mockClusterListener).onJoin(any)
-      verify.one(policy).onConnect()
-      cluster.state.get().must(be(NodeState.Started))
+      // Should no-op if shutdown.
+      verify.no(mockClusterListener).onJoin(any)
+      verify.no(policy).onConnect()
+      cluster.state.get().must(be(NodeState.Shutdown))
     }
 
 
