@@ -167,17 +167,16 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
    */
   def connect(injectedClient: Option[ZooKeeperClient] = None) {
     if (!initialized.get) {
-      val hosts = config.hosts.split(",").map { server =>
-        val host = server.split(":")(0)
-        val port = Integer.parseInt(server.split(":")(1))
-        new InetSocketAddress(host, port)
-      }.toList
-
       zk = injectedClient match {
         case Some(zk) =>
           log.info("Using user-supplied ZooKeeper")
           zk
         case None =>
+          val hosts = config.hosts.split(",").map { server =>
+            val host = server.split(":")(0)
+            val port = Integer.parseInt(server.split(":")(1))
+            new InetSocketAddress(host, port)
+          }.toList
           log.info("Using my own ZooKeeper (hosts: %s)", hosts)
           new ZooKeeperClient(Amount.of(config.zkTimeout, Time.MILLISECONDS), hosts)
       }
