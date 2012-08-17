@@ -112,33 +112,36 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
 
   val connectionWatcher = new Watcher {
     def process(event: WatchedEvent) {
-      event.getState match {
-        case KeeperState.SyncConnected => {
-          log.info("ZooKeeper session established.")
-          connected.set(true)
-          try {
-            if (state.get() != NodeState.Shutdown)
-              onConnect()
-            else
-              log.info("This node is shut down. ZK connection re-established, but not relaunching.")
-          } catch {
-            case e:Exception =>
-              log.error(e, "Exception during zookeeper connection established callback")
+      // Synchronize since we are triggered by both the zk event thread and the user thread
+      synchronized {
+        event.getState match {
+          case KeeperState.SyncConnected => {
+            log.info("ZooKeeper session established.")
+            connected.set(true)
+            try {
+              if (state.get() != NodeState.Shutdown)
+                onConnect()
+              else
+                log.info("This node is shut down. ZK connection re-established, but not relaunching.")
+            } catch {
+              case e:Exception =>
+                log.error(e, "Exception during zookeeper connection established callback")
+            }
           }
+          case KeeperState.Expired =>
+            log.info("ZooKeeper session expired.")
+            connected.set(false)
+            forceShutdown()
+            awaitReconnect()
+          case KeeperState.Disconnected =>
+            log.info("ZooKeeper session disconnected. Awaiting reconnect...")
+            connected.set(false)
+            awaitReconnect()
+          case x: Any =>
+            log.info("ZooKeeper session interrupted. Shutting down due to %s", x)
+            connected.set(false)
+            awaitReconnect()
         }
-        case KeeperState.Expired =>
-          log.info("ZooKeeper session expired.")
-          connected.set(false)
-          forceShutdown()
-          awaitReconnect()
-        case KeeperState.Disconnected =>
-          log.info("ZooKeeper session disconnected. Awaiting reconnect...")
-          connected.set(false)
-          awaitReconnect()
-        case x: Any =>
-          log.info("ZooKeeper session interrupted. Shutting down due to %s", x)
-          connected.set(false)
-          awaitReconnect()
       }
     }
 
