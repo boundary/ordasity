@@ -110,6 +110,26 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     state.get().toString
   }
 
+  /**
+   * registers a shutdown hook which causes cleanup of ephemeral state in zookeeper
+   * when the JVM exits normally (via Ctrl+C or SIGTERM for example)
+   *
+   * this alerts other applications which have discovered this instance that it is
+   * down so they may avoid remitting requests. otherwise this will not happen until
+   * the default zookeeper timeout of 10s during which requests will fail until
+   * the application is up and accepting requests again
+   */
+  def addShutdownHook() {
+    Runtime.getRuntime().addShutdownHook(
+      new Thread() {
+        override def run() {
+          log.info("Cleaning up ephemeral ZooKeeper state")
+          deleteFromZk()
+        }
+      }
+    )
+  }
+
   val connectionWatcher = new Watcher {
     def process(event: WatchedEvent) {
       event.getState match {
@@ -209,12 +229,20 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     setState(NodeState.Shutdown)
     myWorkUnits.map(w => shutdownWork(w))
     myWorkUnits.clear()
+    deleteFromZk()
     try {
       zk.close()
     } catch {
       case e: Exception => log.warn(e, "Zookeeper reported exception on shutdown.")
     }
     listener.onLeave()
+  }
+
+  /**
+   * remove this worker's ephemeral node from zk
+   */
+  def deleteFromZk() {
+    ZKUtils.delete(zk, "/" + name + "/nodes/" + myNodeID)
   }
 
   /**
