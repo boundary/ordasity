@@ -154,10 +154,12 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
         case KeeperState.Disconnected =>
           log.info("ZooKeeper session disconnected. Awaiting reconnect...")
           connected.set(false)
+          forceShutdown()
           awaitReconnect()
         case x: Any =>
           log.info("ZooKeeper session interrupted. Shutting down due to %s", x)
           connected.set(false)
+          forceShutdown()
           awaitReconnect()
       }
     }
