@@ -253,12 +253,13 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   def onConnect() {
     if (state.get() != NodeState.Fresh) {
       if (previousZKSessionStillActive()) {
-        log.info("ZooKeeper session re-established before timeout.")
-        return
+        log.info("ZooKeeper session re-established before timeout. Forcing shutdown and clean startup.")
+        ensureCleanStartup()
       } else {
         log.warn("Rejoined after session timeout. Forcing shutdown and clean startup.")
         ensureCleanStartup()
       }
+      // TODO These two branches are now similar; clean up
     }
 
     log.info("Connected to Zookeeper (ID: %s).", myNodeID)
