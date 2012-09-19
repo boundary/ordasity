@@ -265,7 +265,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     log.info("Connected to Zookeeper (ID: %s).", myNodeID)
     ZKUtils.ensureOrdasityPaths(zk, name, config.workUnitName, config.workUnitShortName)
 
-    joinCluster()
+    joinCluster() // FIXME This retries forever if previousZKSessionStillActive() since our ephemeral still exists
 
     listener.onJoin(zk)
 
