@@ -432,6 +432,13 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
    */
   def shutdownWork(workUnit: String, doLog: Boolean = true, deleteZNode: Boolean = true) {
     if (doLog) log.info("Shutting down %s: %s...", config.workUnitName, workUnit)
+    balancingPolicy match {
+      case _: MeteredBalancingPolicy => metrics.metricsRegistry.removeMetric(getClass, workUnit, "processing")
+      case _: GaugedBalancingPolicy  => metrics.metricsRegistry.removeMetric(getClass, workUnit)
+      case _: CountBalancingPolicy   => // No metric to unregister
+      case _                         =>
+        log.error("Unknown balancingPolicy type %s, possible metrics leak", balancingPolicy.getClass)
+    }
     myWorkUnits.remove(workUnit)
     val path = "/%s/claimed-%s/%s".format(name, config.workUnitShortName, workUnit)
     if (deleteZNode) ZKUtils.delete(zk, path)
