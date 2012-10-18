@@ -4,7 +4,7 @@
 
     <groupId>com.boundary</groupId>
     <artifactId>ordasity-scala_2.9.1</artifactId>
-    <version>0.4.7</version>
+    <version>0.4.8-SNAPSHOT</version>
 
     <name>Ordasity</name>
     <url>http://www.boundary.com</url>
@@ -197,4 +197,9 @@
             <url>http://maven.boundary.com/artifactory/external</url>
         </snapshotRepository>
     </distributionManagement>
+
+    <scm>
+        <connection>scm:git:git@github.com:boundary/ordasity.git</connection>
+    </scm>
+
 </project>
