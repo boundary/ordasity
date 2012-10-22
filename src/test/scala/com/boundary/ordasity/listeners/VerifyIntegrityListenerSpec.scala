@@ -16,11 +16,16 @@
 
 package com.boundary.ordasity.listeners
 
+import org.junit.Test
 import com.codahale.simplespec.Spec
 import com.codahale.logula.Logging
-import org.junit.Test
-import com.boundary.ordasity.{Cluster, ClusterConfig}
+
+import java.util.HashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import org.cliffc.high_scale_lib.NonBlockingHashSet
+
+import com.boundary.ordasity.{Cluster, ClusterConfig}
+import com.boundary.ordasity.balancing.MeteredBalancingPolicy
 
 class VerifyIntegrityListenerSpec extends Spec with Logging {
   Logging.configure()
@@ -37,6 +42,29 @@ class VerifyIntegrityListenerSpec extends Spec with Logging {
       val cluster = mock[Cluster]
       cluster.watchesRegistered.returns(new AtomicBoolean(true))
       cluster.initialized.returns(new AtomicBoolean(true))
+      cluster.workUnitsPeggedToMe.returns(new NonBlockingHashSet[String])
+      cluster.balancingPolicy.returns(new MeteredBalancingPolicy(cluster, config))
+      cluster.myNodeID.returns("testNode")
+
+      val listener = new VerifyIntegrityListener(cluster, config)
+      listener.nodeChanged("foo", "bar")
+
+      verify.one(cluster).verifyIntegrity()
+    }
+
+    @Test def `node changed (pegged to me)` {
+      val cluster = mock[Cluster]
+      cluster.watchesRegistered.returns(new AtomicBoolean(true))
+      cluster.initialized.returns(new AtomicBoolean(true))
+      cluster.workUnitsPeggedToMe.returns(new NonBlockingHashSet[String])
+      cluster.balancingPolicy.returns(new MeteredBalancingPolicy(cluster, config))
+
+      cluster.myNodeID.returns("testNode")
+      cluster.name.returns("foo")
+
+      val workUnitMap = new HashMap[String, String]
+      workUnitMap.put("foo", "{\"foo\": \"testNode\"}")
+      cluster.allWorkUnits.returns(workUnitMap)
 
       val listener = new VerifyIntegrityListener(cluster, config)
       listener.nodeChanged("foo", "bar")
