@@ -18,8 +18,8 @@ import java.util.Random
 import java.util.concurrent.CountDownLatch
 import com.boundary.ordasity.{Cluster, ClusterConfig, SmartListener}
 import com.codahale.logula.Logging
-import com.yammer.metrics.Meter
-import com.twitter.zookeeper.ZooKeeperClient
+import com.yammer.metrics.scala.Meter
+import com.twitter.common.zookeeper.ZooKeeperClient
 import java.util.concurrent.{ScheduledThreadPoolExecutor, TimeUnit, ScheduledFuture}
 import java.util.{HashMap, TimerTask}
 
@@ -31,7 +31,8 @@ val pool = new ScheduledThreadPoolExecutor(1)
 
 val futures = new HashMap[String, ScheduledFuture[_]]
 
-val config = new ClusterConfig("localhost:2181").
+val config = new ClusterConfig().
+  setHosts("localhost:2181").
   setAutoRebalance(true).
   setRebalanceInterval(15).
   useSmartBalancing(true).
