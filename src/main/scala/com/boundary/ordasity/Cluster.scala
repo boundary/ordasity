@@ -18,6 +18,7 @@ package com.boundary.ordasity
 
 import com.codahale.jerkson.Json._
 import com.codahale.logula.Logging
+import com.yammer.metrics.core.Gauge
 import com.yammer.metrics.scala.{Meter, Instrumented}
 import java.lang.management.ManagementFactory
 import javax.management.ObjectName
@@ -33,7 +34,7 @@ import com.twitter.common.quantity.{Time, Amount}
 import com.twitter.common.zookeeper.{ZooKeeperMap => ZKMap, ZooKeeperClient}
 
 import listeners._
-import balancing.{CountBalancingPolicy, MeteredBalancingPolicy}
+import balancing.{CountBalancingPolicy, GaugedBalancingPolicy, MeteredBalancingPolicy}
 import org.apache.zookeeper.{WatchedEvent, Watcher}
 import org.apache.zookeeper.Watcher.Event.KeeperState
 import java.util.concurrent.{TimeoutException, TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
@@ -67,11 +68,12 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   val workUnitsPeggedToMe = new NonBlockingHashSet[String]
   val claimer = new Claimer(this)
 
-  var balancingPolicy = {
-    if (config.useSmartBalancing)
-      new MeteredBalancingPolicy(this, config).init()
-    else
-      new CountBalancingPolicy(this, config).init()
+  var balancingPolicy = (config.useSmartBalancing, config.useSmartGaugedBalancing) match {
+    case (false, false) => new CountBalancingPolicy(this, config).init()
+    case (true,  false) => new MeteredBalancingPolicy(this, config).init()
+    case (false, true)  => new GaugedBalancingPolicy(this, config).init()
+    case (true,  true)  => throw new IllegalArgumentException(
+      "Can't use both smart (meter) balancing and smart gauge balancing. Please pick one.")
   }
 
   // Scheduled executions
@@ -373,7 +375,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     }
 
     // If smart balancing is enabled, watch for changes to the cluster's workload.
-    if (config.useSmartBalancing)
+    if (config.useSmartBalancing || config.useSmartGaugedBalancing)
       loadMap = ZKMap.create[Double](zk, "/%s/meta/workload".format(name), new DoubleDeserializer)
   }
 
@@ -430,21 +432,31 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
    * Starts up a work unit that this node has claimed.
    * If "smart rebalancing" is enabled, hand the listener a meter to mark load.
    * Otherwise, just call "startWork" on the listener and let the client have at it.
-   * TODO: Refactor to remove check and cast.
+   * TODO: Refactor to remove type matching.
    */
   def startWork(workUnit: String, meter: Option[Meter] = None) {
     log.info("Successfully claimed %s: %s. Starting...", config.workUnitName, workUnit)
     val added = myWorkUnits.add(workUnit)
 
     if (added) {
-      if (balancingPolicy.isInstanceOf[MeteredBalancingPolicy]) {
-        val mbp = balancingPolicy.asInstanceOf[MeteredBalancingPolicy]
-        val meter = mbp.persistentMeterCache.getOrElseUpdate(
-          workUnit, metrics.meter(workUnit, "processing"))
-        mbp.meters.put(workUnit, meter)
-        listener.asInstanceOf[SmartListener].startWork(workUnit, meter)
-      } else {
-        listener.asInstanceOf[ClusterListener].startWork(workUnit)
+      (balancingPolicy, listener) match {
+        case (balancingPolicy: GaugedBalancingPolicy, listener: SmartGaugedListener) =>
+          listener.startWork(workUnit)
+          balancingPolicy.gauges.put(workUnit, metrics.gauge(workUnit) {
+            listener.workload(workUnit)
+          })
+        case (balancingPolicy: MeteredBalancingPolicy, listener: SmartListener) =>
+          val meter = balancingPolicy.persistentMeterCache.getOrElseUpdate(
+            workUnit, metrics.meter(workUnit, "processing"))
+          balancingPolicy.gauges.put(workUnit, new Gauge[Double] {
+            def value = meter.oneMinuteRate
+          })
+          listener.startWork(workUnit, meter)
+        case (balancingPolicy: CountBalancingPolicy, listener: ClusterListener) =>
+          listener.startWork(workUnit)
+        case _ =>
+          throw new IllegalStateException("Illegal combination: balancingPolicy = %s, listener = %s".format(
+            balancingPolicy, listener))
       }
     } else {
       log.warn("Detected that %s is already a member of my work units; not starting twice!", workUnit)
@@ -457,6 +469,13 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
    */
   def shutdownWork(workUnit: String, doLog: Boolean = true, deleteZNode: Boolean = true) {
     if (doLog) log.info("Shutting down %s: %s...", config.workUnitName, workUnit)
+    balancingPolicy match {
+      case _: MeteredBalancingPolicy => metrics.metricsRegistry.removeMetric(getClass, workUnit, "processing")
+      case _: GaugedBalancingPolicy  => metrics.metricsRegistry.removeMetric(getClass, workUnit)
+      case _: CountBalancingPolicy   => // No metric to unregister
+      case _                         =>
+        log.error("Unknown balancingPolicy type %s, possible metrics leak", balancingPolicy.getClass)
+    }
     myWorkUnits.remove(workUnit)
     val path = "/%s/claimed-%s/%s".format(name, config.workUnitShortName, workUnit)
     if (deleteZNode) ZKUtils.delete(zk, path)
