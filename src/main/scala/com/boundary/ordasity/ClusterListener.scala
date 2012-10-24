@@ -16,6 +16,7 @@
 
 package com.boundary.ordasity
 
+import com.yammer.metrics.core.Gauge
 import com.yammer.metrics.scala.Meter
 import com.twitter.common.zookeeper.ZooKeeperClient
 
@@ -23,6 +24,11 @@ abstract class Listener {
   def onJoin(client: ZooKeeperClient)
   def onLeave()
   def shutdownWork(workUnit: String)
+}
+
+abstract class SmartGaugedListener extends Listener {
+  def startWork(workUnit: String)
+  def workload(workUnit: String): Double
 }
 
 abstract class SmartListener extends Listener {
