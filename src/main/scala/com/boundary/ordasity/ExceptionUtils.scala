@@ -16,26 +16,15 @@
 
 package com.boundary.ordasity
 
-import com.yammer.metrics.core.Gauge
-import com.yammer.metrics.scala.Meter
-import com.twitter.common.zookeeper.ZooKeeperClient
+import com.codahale.logula.Log
+import com.codahale.logula.Logging
 
-abstract class Listener {
-  def onJoin(client: ZooKeeperClient)
-  def onLeave()
-  def shutdownWork(workUnit: String)
+object ExceptionUtils extends Logging {
+
+  def logExceptions(log: Log)(x: => Any) {
+    try x catch { case e: Exception =>
+      log.error(e, "Unexpected exception")
+    }
+  }
+
 }
-
-abstract class SmartGaugedListener extends Listener {
-  def startWork(workUnit: String)
-  def workload(workUnit: String): Double
-}
-
-abstract class SmartListener extends Listener {
-  def startWork(workUnit: String, meter: Meter)
-}
-
-abstract class ClusterListener extends Listener {
-  def startWork(workUnit: String)
-}
-

@@ -20,6 +20,7 @@ import collection.JavaConversions._
 import com.codahale.logula.Logging
 import com.codahale.jerkson.Json
 import com.boundary.ordasity.{ZKUtils, NodeState, ClusterConfig, Cluster}
+import com.boundary.ordasity.ExceptionUtils.logExceptions
 import com.yammer.metrics.scala.Instrumented
 import java.util.{TimerTask, LinkedList}
 import java.util.concurrent.TimeUnit
@@ -185,7 +186,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
     val drainInterval = ((config.drainTime.toDouble / toHandOff.size) * 1000).intValue()
 
     val handoffTask = new TimerTask {
-      def run() {
+      def run(): Unit = logExceptions(log) {
         if (toHandOff.isEmpty) {
           if (targetCount == 0 && doShutdown) cluster.completeShutdown()
           return
