@@ -113,6 +113,8 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
    * with this node's ID. If the claim succeeds, start work. If not, move on.
    */
   def attemptToClaim(workUnit: String, claimForHandoff: Boolean = false) : Boolean = {
+    log.debug("Attempting to claim %s. For handoff? %s", workUnit, claimForHandoff)
+
     val path = {
       if (claimForHandoff) "/%s/handoff-result/%s".format(cluster.name, workUnit)
       else "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)

@@ -36,7 +36,7 @@ class VerifyIntegrityListener(cluster: Cluster, config: ClusterConfig)
       " IDs: %s".format(cluster.allWorkUnits.keys.mkString(", ")))
 
     if (cluster.balancingPolicy.isPeggedToMe(nodeName))
-      cluster.claimWork()
+      cluster.claimer.requestClaim()
 
     cluster.verifyIntegrity()
   }
@@ -44,7 +44,7 @@ class VerifyIntegrityListener(cluster: Cluster, config: ClusterConfig)
   def nodeRemoved(nodeName: String) {
     if (!cluster.initialized.get()) return
 
-    cluster.claimWork()
+    cluster.claimer.requestClaim()
     cluster.verifyIntegrity()
   }
 }

@@ -24,7 +24,7 @@ import java.util.HashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import org.cliffc.high_scale_lib.NonBlockingHashSet
 
-import com.boundary.ordasity.{Cluster, ClusterConfig}
+import com.boundary.ordasity.{Claimer, Cluster, ClusterConfig}
 import com.boundary.ordasity.balancing.MeteredBalancingPolicy
 
 class VerifyIntegrityListenerSpec extends Spec with Logging {
@@ -45,6 +45,9 @@ class VerifyIntegrityListenerSpec extends Spec with Logging {
       cluster.workUnitsPeggedToMe.returns(new NonBlockingHashSet[String])
       cluster.balancingPolicy.returns(new MeteredBalancingPolicy(cluster, config))
       cluster.myNodeID.returns("testNode")
+      val claimer = new Claimer(cluster)
+      claimer.start
+      cluster.claimer.returns(claimer)
 
       val listener = new VerifyIntegrityListener(cluster, config)
       listener.nodeChanged("foo", "bar")
@@ -66,6 +69,10 @@ class VerifyIntegrityListenerSpec extends Spec with Logging {
       workUnitMap.put("foo", "{\"foo\": \"testNode\"}")
       cluster.allWorkUnits.returns(workUnitMap)
 
+      val claimer = new Claimer(cluster)
+      claimer.start
+      cluster.claimer.returns(claimer)
+
       val listener = new VerifyIntegrityListener(cluster, config)
       listener.nodeChanged("foo", "bar")
 
@@ -77,6 +84,10 @@ class VerifyIntegrityListenerSpec extends Spec with Logging {
       val cluster = mock[Cluster]
       cluster.watchesRegistered.returns(new AtomicBoolean(true))
       cluster.initialized.returns(new AtomicBoolean(true))
+
+      val claimer = new Claimer(cluster)
+      claimer.start
+      cluster.claimer.returns(claimer)
 
       val listener = new VerifyIntegrityListener(cluster, config)
       listener.nodeRemoved("foo")

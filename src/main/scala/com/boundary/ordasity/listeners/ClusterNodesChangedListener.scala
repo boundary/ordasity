@@ -33,14 +33,14 @@ class ClusterNodesChangedListener(cluster: Cluster)
     if (!cluster.initialized.get()) return
 
     log.info("Nodes: %s".format(cluster.nodes.map(n => n._1).mkString(", ")))
-    cluster.claimWork()
+    cluster.claimer.requestClaim()
     cluster.verifyIntegrity()
   }
 
   def nodeRemoved(nodeName: String) {
     if (!cluster.initialized.get()) return
     log.info("%s has left the cluster.", nodeName)
-    cluster.claimWork()
+    cluster.claimer.requestClaim()
     cluster.verifyIntegrity()
   }
 }

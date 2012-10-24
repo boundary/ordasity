@@ -20,7 +20,7 @@ import com.codahale.simplespec.Spec
 import com.codahale.logula.Logging
 import org.junit.Test
 import java.util.concurrent.atomic.AtomicBoolean
-import com.boundary.ordasity.{NodeState, NodeInfo, Cluster, ClusterConfig}
+import com.boundary.ordasity.{NodeState, NodeInfo, Cluster, ClusterConfig, Claimer}
 
 class ClusterNodesChangedListenerSpec extends Spec with Logging {
   Logging.configure()
@@ -38,6 +38,10 @@ class ClusterNodesChangedListenerSpec extends Spec with Logging {
       cluster.watchesRegistered.returns(new AtomicBoolean(true))
       cluster.initialized.returns(new AtomicBoolean(true))
 
+      val claimer = new Claimer(cluster)
+      claimer.start
+      cluster.claimer.returns(claimer)
+
       val listener = new ClusterNodesChangedListener(cluster)
       listener.nodeChanged("foo", NodeInfo(NodeState.Started.toString, 0L))
 
@@ -49,6 +53,10 @@ class ClusterNodesChangedListenerSpec extends Spec with Logging {
       val cluster = mock[Cluster]
       cluster.watchesRegistered.returns(new AtomicBoolean(true))
       cluster.initialized.returns(new AtomicBoolean(true))
+
+      val claimer = new Claimer(cluster)
+      claimer.start
+      cluster.claimer.returns(claimer)
 
       val listener = new ClusterNodesChangedListener(cluster)
       listener.nodeRemoved("foo")
