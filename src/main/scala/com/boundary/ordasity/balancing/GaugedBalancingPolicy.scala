@@ -100,9 +100,10 @@ class GaugedBalancingPolicy(cluster: Cluster, config: ClusterConfig)
    */
   def myLoad() : Double = {
     var load = 0d
-    log.debug(cluster.loadMap.toString)
-    log.debug(cluster.myWorkUnits.toString)
-    cluster.myWorkUnits.foreach(u => load += cluster.getOrElse(cluster.loadMap, u, 0))
+    log.debug("%s", cluster.loadMap)
+    log.debug("%s", cluster.myWorkUnits)
+    if (cluster.myWorkUnits != null && cluster.loadMap != null)
+      cluster.myWorkUnits.foreach(u => load += cluster.getOrElse(cluster.loadMap, u, 0))
     load
   }
 
