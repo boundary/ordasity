@@ -35,9 +35,7 @@ class VerifyIntegrityListener(cluster: Cluster, config: ClusterConfig)
     log.debug(config.workUnitName.capitalize +
       " IDs: %s".format(cluster.allWorkUnits.keys.mkString(", ")))
 
-    if (cluster.balancingPolicy.isPeggedToMe(nodeName))
-      cluster.claimer.requestClaim()
-
+    cluster.claimer.requestClaim()
     cluster.verifyIntegrity()
   }
 

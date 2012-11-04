@@ -52,30 +52,6 @@ class VerifyIntegrityListenerSpec extends Spec with Logging {
       val listener = new VerifyIntegrityListener(cluster, config)
       listener.nodeChanged("foo", "bar")
 
-      verify.one(cluster).verifyIntegrity()
-    }
-
-    @Test def `node changed (pegged to me)` {
-      val cluster = mock[Cluster]
-      cluster.watchesRegistered.returns(new AtomicBoolean(true))
-      cluster.initialized.returns(new AtomicBoolean(true))
-      cluster.workUnitsPeggedToMe.returns(new NonBlockingHashSet[String])
-      cluster.balancingPolicy.returns(new MeteredBalancingPolicy(cluster, config))
-
-      cluster.myNodeID.returns("testNode")
-      cluster.name.returns("foo")
-
-      val workUnitMap = new HashMap[String, String]
-      workUnitMap.put("foo", "{\"foo\": \"testNode\"}")
-      cluster.allWorkUnits.returns(workUnitMap)
-
-      val claimer = new Claimer(cluster)
-      claimer.start
-      cluster.claimer.returns(claimer)
-
-      val listener = new VerifyIntegrityListener(cluster, config)
-      listener.nodeChanged("foo", "bar")
-
       verify.one(cluster).claimWork()
       verify.one(cluster).verifyIntegrity()
     }
