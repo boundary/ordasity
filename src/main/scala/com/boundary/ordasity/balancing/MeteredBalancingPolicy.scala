@@ -64,8 +64,10 @@ class MeteredBalancingPolicy(cluster: Cluster, config: ClusterConfig)
         val workUnit = unclaimed.poll()
 
         if (config.useSoftHandoff && cluster.handoffRequests.contains(workUnit)
-            && isFairGame(workUnit) && attemptToClaim(workUnit, claimForHandoff = true))
-          log.info("Accepted handoff for %s.", workUnit)
+            && isFairGame(workUnit) && attemptToClaim(workUnit, claimForHandoff = true)) {
+              log.info("Accepted handoff for %s.", workUnit)
+              cluster.handoffResultsListener.finishHandoff(workUnit)
+            }
 
         else if (isFairGame(workUnit))
           attemptToClaim(workUnit)

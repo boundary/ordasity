@@ -51,6 +51,7 @@ class CountBalancingPolicy(cluster: Cluster, config: ClusterConfig) extends Bala
         if ((isFairGame(workUnit) && claimed < maxToClaim) || isPeggedToMe(workUnit)) {
           if (config.useSoftHandoff && cluster.handoffRequests.contains(workUnit) && attemptToClaim(workUnit, true)) {
             log.info("Accepted handoff of %s.", workUnit)
+            cluster.handoffResultsListener.finishHandoff(workUnit)
             claimed += 1
           } else if (!cluster.handoffRequests.contains(workUnit) && attemptToClaim(workUnit)) {
             claimed += 1

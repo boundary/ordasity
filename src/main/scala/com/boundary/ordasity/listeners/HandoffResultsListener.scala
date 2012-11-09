@@ -41,25 +41,12 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
   def apply(workUnit: String) {
     if (!cluster.initialized.get()) return
 
-    if (iAcceptedHandoff(workUnit)) {
-      finishHandoff(workUnit)
-
-    } else if (iRequestedHandoff(workUnit)) {
+    if (iRequestedHandoff(workUnit)) {
       log.info("Handoff of %s to %s completed. Shutting down %s in %s seconds.", workUnit,
         cluster.getOrElse(cluster.handoffResults, workUnit, "(None)"), workUnit, config.handoffShutdownDelay)
       ZKUtils.delete(cluster.zk, "/%s/handoff-requests/%s".format(cluster.name, workUnit))
       cluster.pool.get.schedule(shutdownAfterHandoff(workUnit), config.handoffShutdownDelay, TimeUnit.SECONDS)
     }
-  }
-
-  /**
-   * Determines if this Ordasity node has accepted handoff of a work unit.
-   * I have accepted handoff of this work unit if its "destination" is "me"
-   * and it is in my set of active work units.
-   */
-  def iAcceptedHandoff(workUnit: String) : Boolean = {
-    val destinationNode = cluster.getOrElse(cluster.handoffResults, workUnit, "")
-    cluster.myWorkUnits.contains(workUnit) && cluster.isMe(destinationNode)
   }
 
   /**
@@ -83,7 +70,7 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
       def run() {
         log.info("Shutting down %s following handoff to %s.",
           workUnit, cluster.getOrElse(cluster.handoffResults, workUnit, "(None)"))
-        cluster.shutdownWork(workUnit, false, true)
+        cluster.shutdownWork(workUnit, doLog = false, deleteZNode = true)
 
         if (cluster.myWorkUnits.size() == 0 && cluster.state.get() == NodeState.Draining)
           cluster.shutdown()
@@ -102,15 +89,21 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
 
     val claimPostHandoffTask = new TimerTask {
       def run() {
-        val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
-        if (ZKUtils.createEphemeral(cluster.zk, path, cluster.myNodeID) || cluster.znodeIsMe(path)) {
-          ZKUtils.delete(cluster.zk, "/" + cluster.name + "/handoff-result/" + workUnit)
-          cluster.claimedForHandoff.remove(workUnit)
-          log.warn("Handoff of %s to me complete. Peer has shut down work.", workUnit)
-        } else {
-          log.warn("Waiting to establish final ownership of %s following handoff...", workUnit)
-          cluster.pool.get.schedule(this, retryTime, TimeUnit.MILLISECONDS)
+        try {
+          val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
+          if (ZKUtils.createEphemeral(cluster.zk, path, cluster.myNodeID) || cluster.znodeIsMe(path)) {
+            ZKUtils.delete(cluster.zk, "/" + cluster.name + "/handoff-result/" + workUnit)
+            cluster.claimedForHandoff.remove(workUnit)
+            log.warn("Handoff of %s to me complete. Peer has shut down work.", workUnit)
+          } else {
+            log.warn("Waiting to establish final ownership of %s following handoff...", workUnit)
+            cluster.pool.get.schedule(this, retryTime, TimeUnit.MILLISECONDS)
+          }
+        } catch {
+          case e: Exception =>
+            log.error(e, "Error completing handoff of %s to me.", workUnit)
         }
+
       }
     }
 

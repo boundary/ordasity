@@ -66,6 +66,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   var loadMap : Map[String, Double] = null
   val workUnitsPeggedToMe = new NonBlockingHashSet[String]
   val claimer = new Claimer(this)
+  val handoffResultsListener = new HandoffResultsListener(this, config)
 
   var balancingPolicy = {
     if (config.useSmartBalancing)
@@ -348,7 +349,6 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
 
     val nodesChangedListener = new ClusterNodesChangedListener(this)
     val verifyIntegrityListener = new VerifyIntegrityListener(this, config)
-    val handoffResultsListener = new HandoffResultsListener(this, config)
     val stringDeser = new StringDeserializer()
 
     nodes = ZKMap.create(zk, "/%s/nodes".format(name),
@@ -458,6 +458,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   def shutdownWork(workUnit: String, doLog: Boolean = true, deleteZNode: Boolean = true) {
     if (doLog) log.info("Shutting down %s: %s...", config.workUnitName, workUnit)
     myWorkUnits.remove(workUnit)
+    claimedForHandoff.remove(workUnit)
     val path = "/%s/claimed-%s/%s".format(name, config.workUnitShortName, workUnit)
     if (deleteZNode) ZKUtils.delete(zk, path)
     balancingPolicy.onShutdownWork(workUnit)

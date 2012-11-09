@@ -42,24 +42,6 @@ class HandoffResultsListenerSpec extends Spec with Logging {
 
   class `Handoff Results Listener` {
 
-    @Test def `test 'i accepted handoff'` {
-      val cluster = new Cluster(UUID.randomUUID().toString, null, config)
-      val listener = new HandoffResultsListener(cluster, config)
-
-      cluster.handoffResults = new HashMap[String, String]
-      cluster.handoffResults.put("workUnit", "testNode")
-      cluster.handoffResults.put("otherWorkUnit", "otherNode")
-      cluster.handoffResults.put("edgeCase", "otherNode")
-
-      cluster.myWorkUnits.add("workUnit")
-      cluster.myWorkUnits.add("edgeCase")
-
-      listener.iAcceptedHandoff("workUnit").must(be(true))
-      listener.iAcceptedHandoff("otherWorkUnit").must(be(false))
-      listener.iAcceptedHandoff("edgeCase").must(be(false))
-      listener.iAcceptedHandoff("nothing").must(be(false))
-    }
-
     @Test def `test 'i requested handoff'` {
       val cluster = new Cluster(UUID.randomUUID().toString, null, config)
       val listener = new HandoffResultsListener(cluster, config)
@@ -206,6 +188,7 @@ class HandoffResultsListenerSpec extends Spec with Logging {
       cluster.claimedForHandoff.contains(workUnit).must(be(false))
     }
 
+    // TODO: Expand the scope of this test.
     // The big kahuna for 'i accepted handoff'
     @Test def `test apply for accepting handoff` {
       val workUnit = "workUnit"
@@ -215,16 +198,17 @@ class HandoffResultsListenerSpec extends Spec with Logging {
       cluster.watchesRegistered.set(true)
       cluster.initialized.set(true)
       cluster.handoffResults = new HashMap[String, String]
+      cluster.workUnitMap = new HashMap[String, String]
       cluster.handoffResults.put(workUnit, "testNode")
       cluster.myWorkUnits.add(workUnit)
-      listener.iAcceptedHandoff(workUnit).must(be(true))
+      cluster.claimedForHandoff.add(workUnit)
+      cluster.handoffResultsListener.finishHandoff(workUnit)
 
       val mockZK = mock[ZooKeeper]
       val mockZKClient = mock[ZooKeeperClient]
       mockZKClient.get().returns(mockZK)
       cluster.zk = mockZKClient
 
-      cluster.claimedForHandoff.add(workUnit)
       cluster.workUnitMap = new HashMap[String, String]
       cluster.workUnitMap.put(workUnit, "somewhereElse")
 
@@ -255,6 +239,9 @@ class HandoffResultsListenerSpec extends Spec with Logging {
 
       val myWorkUnits = new NonBlockingHashSet[String]
       myWorkUnits.add(workUnit)
+
+      val claimedForHandoff = new NonBlockingHashSet[String]
+      cluster.claimedForHandoff.returns(claimedForHandoff)
 
       // Mocks
       val mockZK = mock[ZooKeeper]
