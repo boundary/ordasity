@@ -25,10 +25,11 @@ import com.twitter.common.zookeeper.ZooKeeperClient
 import com.boundary.ordasity._
 import java.util.concurrent.atomic.{AtomicReference, AtomicBoolean}
 import org.apache.zookeeper.ZooDefs.Ids
-import org.apache.zookeeper.{CreateMode, ZooKeeper}
-import org.apache.zookeeper.KeeperException.NodeExistsException
-import org.mockito.Mockito
+import org.apache.zookeeper.{WatchedEvent, Watcher, CreateMode, ZooKeeper}
+import org.mockito.{ArgumentCaptor, Mockito}
 import java.util.concurrent.ScheduledThreadPoolExecutor
+import org.apache.zookeeper.data.Stat
+import org.apache.zookeeper.Watcher.Event.{EventType, KeeperState}
 
 class HandoffResultsListenerSpec extends Spec with Logging {
   Logging.configure()
@@ -130,12 +131,16 @@ class HandoffResultsListenerSpec extends Spec with Logging {
       mockZK.create(path, cluster.myNodeID.getBytes, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL).returns("")
       mockZK.getData(path, false, null).returns("otherNode".getBytes)
 
+      val captureWatchter = ArgumentCaptor.forClass(classOf[Watcher])
+      Mockito.when(mockZK.exists(equalTo(path), captureWatchter.capture())).thenReturn(new Stat())
+
       listener.finishHandoff(workUnit)
-      Thread.sleep(1200)
+      // Callback on the watcher
+      captureWatchter.getValue.process(new WatchedEvent(EventType.NodeDeleted, KeeperState.SyncConnected, path))
       cluster.claimedForHandoff.contains(workUnit).must(be(false))
     }
 
-    @Test def `test finish handoff retry on znode create` {
+    @Test def `test finish handoff when exists is null` {
       val cluster = new Cluster(UUID.randomUUID().toString, null, config)
       val listener = new HandoffResultsListener(cluster, config)
       val workUnit = "workUnit"
@@ -150,40 +155,10 @@ class HandoffResultsListenerSpec extends Spec with Logging {
       cluster.workUnitMap.put("workUnit", "somewhereElse")
 
       val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
-      mockZK.getData(path, false, null).returns("otherNode".getBytes)
+      mockZK.exists(equalTo(path), any[Watcher]).returns(null)
+      mockZK.create(path, cluster.myNodeID.getBytes, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL)
 
-      Mockito.when(mockZK.create(path, cluster.myNodeID.getBytes, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL)).
-        thenThrow(new NodeExistsException).
-        thenReturn("")
-
-      listener.finishHandoff(workUnit, 100)
-      Thread.sleep(1200)
-
-      cluster.claimedForHandoff.contains(workUnit).must(be(false))
-    }
-
-    @Test def `test finish handoff retry on znode create when znode is me` {
-      val cluster = new Cluster(UUID.randomUUID().toString, null, config)
-      val listener = new HandoffResultsListener(cluster, config)
-      val workUnit = "workUnit"
-
-      val mockZK = mock[ZooKeeper]
-      val mockZKClient = mock[ZooKeeperClient]
-      mockZKClient.get().returns(mockZK)
-      cluster.zk = mockZKClient
-
-      cluster.claimedForHandoff.add(workUnit)
-      cluster.workUnitMap = new HashMap[String, String]
-      cluster.workUnitMap.put("workUnit", "somewhereElse")
-
-      val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
-      mockZK.getData(path, false, null).returns(cluster.myNodeID.getBytes)
-
-      mockZK.create(path, cluster.myNodeID.getBytes, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL).
-        throws(new NodeExistsException())
-
-      listener.finishHandoff(workUnit, 10000) // Long timeout to verify it works on the first shot.
-      Thread.sleep(1000 + 100) // Account for handoff shutdown delay
+      listener.finishHandoff(workUnit)
 
       cluster.claimedForHandoff.contains(workUnit).must(be(false))
     }
@@ -195,6 +170,20 @@ class HandoffResultsListenerSpec extends Spec with Logging {
       val cluster = new Cluster(UUID.randomUUID().toString, null, config)
       val listener = new HandoffResultsListener(cluster, config)
 
+      val mockZK = mock[ZooKeeper]
+      val mockZKClient = mock[ZooKeeperClient]
+      mockZKClient.get().returns(mockZK)
+      cluster.zk = mockZKClient
+
+      val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
+      mockZK.getData(path, false, null).returns("otherNode".getBytes)
+
+      Mockito.when(mockZK.create(path, cluster.myNodeID.getBytes, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL)).
+        thenReturn("")
+
+      val captureWatchter = ArgumentCaptor.forClass(classOf[Watcher])
+      Mockito.when(mockZK.exists(equalTo(path), captureWatchter.capture())).thenReturn(new Stat())
+
       cluster.watchesRegistered.set(true)
       cluster.initialized.set(true)
       cluster.handoffResults = new HashMap[String, String]
@@ -203,24 +192,13 @@ class HandoffResultsListenerSpec extends Spec with Logging {
       cluster.myWorkUnits.add(workUnit)
       cluster.claimedForHandoff.add(workUnit)
       cluster.handoffResultsListener.finishHandoff(workUnit)
-
-      val mockZK = mock[ZooKeeper]
-      val mockZKClient = mock[ZooKeeperClient]
-      mockZKClient.get().returns(mockZK)
-      cluster.zk = mockZKClient
+      // Callback on the watcher
+      captureWatchter.getValue.process(new WatchedEvent(EventType.NodeDeleted, KeeperState.SyncConnected, path))
 
       cluster.workUnitMap = new HashMap[String, String]
       cluster.workUnitMap.put(workUnit, "somewhereElse")
 
-      val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
-      mockZK.getData(path, false, null).returns("otherNode".getBytes)
-
-      Mockito.when(mockZK.create(path, cluster.myNodeID.getBytes, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL)).
-        thenThrow(new NodeExistsException).
-        thenReturn("")
-
       listener.apply(workUnit)
-      Thread.sleep(5000)
 
       cluster.claimedForHandoff.contains(workUnit).must(be(false))
     }

@@ -20,7 +20,7 @@ import com.boundary.ordasity._
 import com.codahale.logula.Logging
 import java.util.concurrent.TimeUnit
 import com.twitter.common.zookeeper.ZooKeeperMap
-import java.util.TimerTask
+import org.apache.zookeeper.{WatchedEvent, Watcher}
 
 /* The HandoffResultsListener keeps track of the handoff state of work units
  * around the cluster. As events fire, this listener determines whether or not
@@ -87,27 +87,36 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
     log.info("Handoff of %s to me acknowledged. Deleting claim ZNode for %s and waiting for %s to " +
       "shutdown work.", workUnit, workUnit, cluster.getOrElse(cluster.workUnitMap, workUnit, "(None)"))
 
-    val claimPostHandoffTask = new TimerTask {
-      def run() {
-        try {
-          val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
-          if (ZKUtils.createEphemeral(cluster.zk, path, cluster.myNodeID) || cluster.znodeIsMe(path)) {
-            ZKUtils.delete(cluster.zk, "/" + cluster.name + "/handoff-result/" + workUnit)
-            cluster.claimedForHandoff.remove(workUnit)
-            log.warn("Handoff of %s to me complete. Peer has shut down work.", workUnit)
-          } else {
-            log.warn("Waiting to establish final ownership of %s following handoff...", workUnit)
-            cluster.pool.get.schedule(this, retryTime, TimeUnit.MILLISECONDS)
-          }
-        } catch {
-          case e: Exception =>
-            log.error(e, "Error completing handoff of %s to me.", workUnit)
+    val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
+    val completeHandoff = () => {
+      try {
+        log.info("Completing handoff of %s", workUnit)
+        if (ZKUtils.createEphemeral(cluster.zk, path, cluster.myNodeID) || cluster.znodeIsMe(path)) {
+          log.info("Handoff of %s to me complete. Peer has shut down work.", workUnit)
         }
-
+        else {
+          log.warn("Failed to completed handoff of %s - couldn't create ephemeral node", workUnit)
+        }
+      } catch {
+        case e: Exception =>
+          log.error(e, "Error completing handoff of %s to me.", workUnit)
+      } finally {
+        ZKUtils.delete(cluster.zk, "/" + cluster.name + "/handoff-result/" + workUnit)
+        cluster.claimedForHandoff.remove(workUnit)
       }
     }
 
-    cluster.pool.get.schedule(claimPostHandoffTask, config.handoffShutdownDelay, TimeUnit.SECONDS)
+    val stat = cluster.zk.get().exists(path, new Watcher {
+      def process(event: WatchedEvent) {
+        // Don't really care about the type of event here - call unconditionally to clean up state
+        completeHandoff()
+      }
+    })
+    // Unlikely that peer will have already deleted znode, but handle it regardless
+    if (stat == null) {
+      log.warn("Peer already deleted znode of %s", workUnit)
+      completeHandoff()
+    }
   }
 
 }
