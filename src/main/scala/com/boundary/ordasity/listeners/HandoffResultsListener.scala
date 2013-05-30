@@ -1,5 +1,5 @@
 //
-// Copyright 2011-2012, Boundary
+// Copyright 2011-2013, Boundary
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
    * Attempts to establish a final claim to the node handed off to me in ZooKeeper, and
    * repeats execution of the task every two seconds until it is complete.
    */
-  def finishHandoff(workUnit: String, retryTime: Int = 2000) {
+  def finishHandoff(workUnit: String) {
     log.info("Handoff of %s to me acknowledged. Deleting claim ZNode for %s and waiting for %s to " +
       "shutdown work.", workUnit, workUnit, cluster.getOrElse(cluster.workUnitMap, workUnit, "(None)"))
 
