@@ -65,7 +65,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   val claimedForHandoff = new NonBlockingHashSet[String]
   var loadMap : Map[String, Double] = null
   val workUnitsPeggedToMe = new NonBlockingHashSet[String]
-  val claimer = new Claimer(this)
+  val claimer = new Claimer(this, "ordasity-claimer-" + name)
   val handoffResultsListener = new HandoffResultsListener(this, config)
 
   var balancingPolicy = {
