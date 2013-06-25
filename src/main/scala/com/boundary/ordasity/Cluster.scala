@@ -37,6 +37,7 @@ import balancing.{CountBalancingPolicy, MeteredBalancingPolicy}
 import org.apache.zookeeper.{WatchedEvent, Watcher}
 import org.apache.zookeeper.Watcher.Event.KeeperState
 import java.util.concurrent.{TimeoutException, TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
+import overlock.threadpool.NamedThreadFactory
 
 trait ClusterMBean {
   def join() : String
@@ -76,7 +77,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   }
 
   // Scheduled executions
-  val pool = new AtomicReference[ScheduledThreadPoolExecutor](new ScheduledThreadPoolExecutor(1))
+  val pool = new AtomicReference[ScheduledThreadPoolExecutor](createScheduledThreadExecutor())
   var autoRebalanceFuture : Option[ScheduledFuture[_]] = None
 
   // Metrics
@@ -90,6 +91,10 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   def getState() : NodeState.Value = state.get()
 
   var zk : ZooKeeperClient = null
+
+  private[this] def createScheduledThreadExecutor() : ScheduledThreadPoolExecutor = {
+    new ScheduledThreadPoolExecutor(1, new NamedThreadFactory("ordasity-scheduler"))
+  }
 
   /**
    * Joins the cluster, claims work, and begins operation.
@@ -290,7 +295,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
    */
   def ensureCleanStartup() {
     forceShutdown()
-    val oldPool = pool.getAndSet(new ScheduledThreadPoolExecutor(1))
+    val oldPool = pool.getAndSet(createScheduledThreadExecutor())
     oldPool.shutdownNow()
     myWorkUnits.map(w => shutdownWork(w))
     myWorkUnits.clear()
