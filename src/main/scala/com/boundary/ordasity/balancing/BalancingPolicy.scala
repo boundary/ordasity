@@ -56,7 +56,8 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
     cluster.allWorkUnits.keys.toSet --
     cluster.workUnitMap.keys.toSet ++
     cluster.handoffRequests.keySet --
-    cluster.handoffResults.keys
+    cluster.handoffResults.keys --
+    cluster.myWorkUnits
   }
 
   /**

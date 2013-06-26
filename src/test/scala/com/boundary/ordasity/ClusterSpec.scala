@@ -115,6 +115,7 @@ class ClusterSpec extends Spec with Logging {
 
       val (mockZK, mockZKClient) = getMockZK()
       cluster.zk = mockZKClient
+      cluster.allWorkUnits = new HashMap[String, String]
 
       cluster.myWorkUnits.add(work)
       cluster.myWorkUnits.contains(work).must(be(true))
@@ -177,6 +178,7 @@ class ClusterSpec extends Spec with Logging {
       cluster.claimedForHandoff.add("bar")
       cluster.workUnitsPeggedToMe.add("baz")
       cluster.state.set(NodeState.Draining)
+      cluster.allWorkUnits = new HashMap[String, String]
 
       cluster.ensureCleanStartup()
       verify.one(pol).shutdown()
@@ -218,6 +220,7 @@ class ClusterSpec extends Spec with Logging {
       val pol = new CountBalancingPolicy(cluster, config)
       cluster.balancingPolicy = pol
       cluster.myWorkUnits.clear()
+      cluster.allWorkUnits = new HashMap[String, String]
 
       val (mockZK, mockZKClient) = getMockZK()
       cluster.zk = mockZKClient
@@ -240,6 +243,7 @@ class ClusterSpec extends Spec with Logging {
       val pol = mock[BalancingPolicy]
       cluster.balancingPolicy = pol
       cluster.myWorkUnits.add("foo")
+      cluster.allWorkUnits = new HashMap[String, String]
       
       cluster.forceShutdown()
 
@@ -355,6 +359,7 @@ class ClusterSpec extends Spec with Logging {
       val (mockZK, mockZKClient) = getMockZK()
       cluster.zk = mockZKClient
       cluster.state.set(NodeState.Started)
+      cluster.allWorkUnits = new HashMap[String, String]
 
       // Ensure that previousZKSessionStillActive() returns false
       val nodeInfo = NodeInfo(NodeState.Started.toString, 102L)

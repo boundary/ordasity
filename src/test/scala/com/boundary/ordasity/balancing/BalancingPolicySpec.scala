@@ -205,8 +205,9 @@ class BalancingPolicySpec extends Spec with Logging {
       val cluster = makeCluster()
       val balancer = new CountBalancingPolicy(cluster, config)
 
-      val workUnits = List("one", "two", "three", "four", "five", "six", "seven")
+      val workUnits = List("one", "two", "three", "four", "five", "six", "seven", "eight")
       workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
+      cluster.myWorkUnits.add("eight")
 
       List("one", "two").foreach(el => cluster.workUnitMap.put(el, ""))
       List("three", "four").foreach(el => cluster.handoffRequests.put(el, ""))
