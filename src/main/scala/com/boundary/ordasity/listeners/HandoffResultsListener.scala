@@ -106,14 +106,14 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
       }
     }
 
-    val stat = cluster.zk.get().exists(path, new Watcher {
+    val stat = ZKUtils.exists(cluster.zk, path, new Watcher {
       def process(event: WatchedEvent) {
         // Don't really care about the type of event here - call unconditionally to clean up state
         completeHandoff()
       }
     })
     // Unlikely that peer will have already deleted znode, but handle it regardless
-    if (stat == null) {
+    if (stat.isEmpty) {
       log.warn("Peer already deleted znode of %s", workUnit)
       completeHandoff()
     }
