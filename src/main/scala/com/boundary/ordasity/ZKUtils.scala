@@ -23,6 +23,7 @@ import org.apache.zookeeper.ZooDefs.Ids
 import org.apache.zookeeper.KeeperException.{NoNodeException, NodeExistsException}
 import org.apache.zookeeper.{WatchedEvent, Watcher, KeeperException, CreateMode}
 import org.apache.zookeeper.Watcher.Event.EventType
+import org.apache.zookeeper.data.Stat
 
 object ZKUtils extends Logging {
 
@@ -96,6 +97,18 @@ object ZKUtils extends Logging {
       case e: Exception =>
         log.error(e, "Error getting data for ZNode at path %s", path)
         null
+    }
+  }
+
+  def exists(zk: ZooKeeperClient, path: String, watcher: Watcher = null) : Option[Stat] = {
+    try {
+      Option(zk.get().exists(path, watcher))
+    } catch {
+      case e: InterruptedException =>
+        throw e
+      case e: Exception =>
+        log.error(e, "Failed to get stat for ZNode at path %s", path)
+        None
     }
   }
 
