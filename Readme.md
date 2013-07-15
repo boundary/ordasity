@@ -62,7 +62,7 @@ Let's get started with an example. Here's how to build a clustered service in 25
         def onLeave() { }
       }
 
-      val config = new ClusterConfig("localhost:2181")
+      val config = new ClusterConfig().setHosts("localhost:2181")
       val cluster = new Cluster("ServiceName", listener, config)
 
       cluster.join()
@@ -168,7 +168,8 @@ Ordasity supports automatic and manual rebalancing to even out the cluster's loa
 To trigger a manual rebalance on all nodes, touch "/service-name/meta/rebalance" in Zookeeper. However, automatic rebalancing is preferred. To enable it, just turn it on in your cluster config:
 
 ```scala
-    val config = new ClusterConfig("localhost:2181").
+    val config = new ClusterConfig().
+      setHosts("localhost:2181").
       setAutoRebalance(true).
       setRebalanceInterval(60 * 60) // One hour
 ```
@@ -216,7 +217,7 @@ The *drainToCount* and *drainToLoad* strategies invoked by a rebalance will rele
 Ordasity allows you to configure the period of time for a drain to complete: 
 
 ```scala
-    val config = new ClusterConfig("localhost:2181").setDrainTime(60) // 60 Seconds
+    val config = new ClusterConfig().setHosts("localhost:2181").setDrainTime(60) // 60 Seconds
 ```
 
 When a drain is initiated, Ordasity will pace the release of work units over the time specified. If 15 work units were to be released over a 60-second period, the library would release one every four seconds.
@@ -231,7 +232,8 @@ When Handoff is enabled, Ordasity will allow another node to begin processing fo
 To enable it, just turn it on in your ClusterConfig:
 
 ```scala
-    val clusterConfig = new ClusterConfig("localhost:2181").
+    val clusterConfig = new ClusterConfig().
+      setHosts("localhost:2181").
       setUseSoftHandoff(true).
       setHandoffShutdownDelay(10) // Seconds
 ```
