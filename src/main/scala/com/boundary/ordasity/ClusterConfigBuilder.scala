@@ -21,6 +21,17 @@ class ClusterConfigBuilder {
 
   def build() : ClusterConfig = {
     val config = new ClusterConfig()
+    config.setHosts(hosts)
+    config.setAutoRebalance(enableAutoRebalance)
+    config.setRebalanceInterval(autoRebalanceInterval)
+    config.setDrainTime(drainTime)
+    config.useSmartBalancing(useSmartBalancing)
+    config.setZKTimeout(zkTimeout)
+    config.setWorkUnitName(workUnitName)
+    config.setWorkUnitShortName(workUnitShortName)
+    config.setNodeId(nodeId)
+    config.setUseSoftHandoff(useSoftHandoff)
+    config.setHandoffShutdownDelay(handoffShutdownDelay)
     config
   }
   
