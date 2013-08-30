@@ -22,7 +22,7 @@ import com.yammer.metrics.scala.{Meter, Instrumented}
 import java.lang.management.ManagementFactory
 import javax.management.ObjectName
 
-import java.util.{HashMap, Map}
+import java.util.{Collections, HashMap, Map}
 import scala.collection.JavaConversions._
 import org.cliffc.high_scale_lib.NonBlockingHashSet
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
@@ -64,7 +64,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   var handoffRequests : Map[String, String] = null
   var handoffResults : Map[String, String] = null
   val claimedForHandoff = new NonBlockingHashSet[String]
-  var loadMap : Map[String, Double] = null
+  var loadMap : Map[String, Double] = Collections.emptyMap()
   val workUnitsPeggedToMe = new NonBlockingHashSet[String]
   val claimer = new Claimer(this, "ordasity-claimer-" + name)
   val handoffResultsListener = new HandoffResultsListener(this, config)
