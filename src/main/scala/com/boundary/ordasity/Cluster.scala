@@ -131,7 +131,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       new Thread() {
         override def run() {
           log.info("Cleaning up ephemeral ZooKeeper state")
-          deleteFromZk()
+          completeShutdown()
         }
       }
     )
@@ -238,6 +238,14 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     myWorkUnits.map(w => shutdownWork(w))
     myWorkUnits.clear()
     deleteFromZk()
+    if (claimer != null) {
+      claimer.interrupt()
+      claimer.join()
+    }
+    // The connection watcher will attempt to reconnect - unregister it
+    if (connectionWatcher != null) {
+      zk.unregister(connectionWatcher)
+    }
     try {
       zk.close()
     } catch {
