@@ -28,9 +28,21 @@
         </dependency>
 
         <dependency>
-            <groupId>com.twitter.common</groupId>
-            <artifactId>zookeeper</artifactId>
-            <version>0.1.1</version>
+            <groupId>com.twitter.common.zookeeper</groupId>
+            <artifactId>client</artifactId>
+            <version>0.0.40</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>jline</groupId>
+                    <artifactId>jline</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>com.twitter.common.zookeeper</groupId>
+            <artifactId>map</artifactId>
+            <version>0.0.35</version>
             <exclusions>
                 <exclusion>
                     <groupId>jline</groupId>
@@ -168,19 +180,8 @@
             <url>http://scala-tools.org/repo-releases</url>
         </repository>
         <repository>
-            <id>apache</id>
-            <name>apache</name>
-            <url>http://people.apache.org/repo/m2-ibiblio-rsync-repository/</url>
-        </repository>
-        <repository>
-            <id>testingscalatoolsorg</id>
-            <name>testing.scala-tools.org</name>
-            <url>http://scala-tools.org/repo-releases/testing/</url>
-        </repository>
-        <repository>
-            <id>downloadjavanet</id>
-            <name>download.java.net</name>
-            <url>http://download.java.net/maven/2/</url>
+            <id>twitter</id>
+            <url>http://maven.twttr.com/</url>
         </repository>
         <repository>
             <id>coda</id>
