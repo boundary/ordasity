@@ -27,7 +27,7 @@ import com.boundary.ordasity.{ClusterConfig, Cluster}
  * to claim work if the topology of nodes and work units in the cluster has changed.
  */
 class VerifyIntegrityListener(cluster: Cluster, config: ClusterConfig)
-    extends ZooKeeperMap.ZKMapListener[String] with Logging {
+    extends ZooKeeperMap.Listener[String] with Logging {
 
   def nodeChanged(nodeName: String, data: String) {
     if (!cluster.initialized.get()) return
