@@ -28,7 +28,7 @@ import org.apache.zookeeper.{WatchedEvent, Watcher}
  * managing that lifecycle as appropriate.
  */
 class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
-    extends ZooKeeperMap.ZKMapListener[String] with Logging {
+    extends ZooKeeperMap.Listener[String] with Logging {
 
   def nodeChanged(nodeName: String, data: String) = apply(nodeName)
   def nodeRemoved(nodeName: String) = apply(nodeName)

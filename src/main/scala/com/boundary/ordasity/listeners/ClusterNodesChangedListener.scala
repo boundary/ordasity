@@ -27,7 +27,7 @@ import com.twitter.common.zookeeper.ZooKeeperMap
  * integrity of existing mappings as appropriate.
  */
 class ClusterNodesChangedListener(cluster: Cluster)
-    extends ZooKeeperMap.ZKMapListener[NodeInfo] with Logging {
+    extends ZooKeeperMap.Listener[NodeInfo] with Logging {
 
   def nodeChanged(nodeName: String, data: NodeInfo) {
     if (!cluster.initialized.get()) return
