@@ -30,7 +30,7 @@
         <dependency>
             <groupId>com.twitter.common.zookeeper</groupId>
             <artifactId>client</artifactId>
-            <version>0.0.40</version>
+            <version>0.0.46</version>
             <exclusions>
                 <exclusion>
                     <groupId>jline</groupId>
@@ -42,7 +42,7 @@
         <dependency>
             <groupId>com.twitter.common.zookeeper</groupId>
             <artifactId>map</artifactId>
-            <version>0.0.35</version>
+            <version>0.0.39</version>
             <exclusions>
                 <exclusion>
                     <groupId>jline</groupId>
