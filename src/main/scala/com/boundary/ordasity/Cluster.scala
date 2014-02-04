@@ -161,10 +161,12 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
         case KeeperState.Disconnected =>
           log.info("ZooKeeper session disconnected. Awaiting reconnect...")
           connected.set(false)
+          forceShutdown()
           awaitReconnect()
         case x: Any =>
           log.info("ZooKeeper session interrupted. Shutting down due to %s", x)
           connected.set(false)
+          forceShutdown()
           awaitReconnect()
       }
     }
@@ -267,18 +269,19 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   def onConnect() {
     if (state.get() != NodeState.Fresh) {
       if (previousZKSessionStillActive()) {
-        log.info("ZooKeeper session re-established before timeout.")
-        return
+        log.info("ZooKeeper session re-established before timeout. Forcing shutdown and clean startup.")
+        ensureCleanStartup()
       } else {
         log.warn("Rejoined after session timeout. Forcing shutdown and clean startup.")
         ensureCleanStartup()
       }
+      // TODO These two branches are now similar; clean up
     }
 
     log.info("Connected to Zookeeper (ID: %s).", myNodeID)
     ZKUtils.ensureOrdasityPaths(zk, name, config.workUnitName, config.workUnitShortName)
 
-    joinCluster()
+    joinCluster() // FIXME This retries forever if previousZKSessionStillActive() since our ephemeral still exists
 
     listener.onJoin(zk)
 
