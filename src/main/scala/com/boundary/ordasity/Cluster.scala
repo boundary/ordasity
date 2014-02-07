@@ -472,10 +472,13 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     if (doLog) log.info("Shutting down %s: %s...", config.workUnitName, workUnit)
     myWorkUnits.remove(workUnit)
     claimedForHandoff.remove(workUnit)
-    val path = "/%s/claimed-%s/%s".format(name, config.workUnitShortName, workUnit)
-    if (deleteZNode) ZKUtils.delete(zk, path)
     balancingPolicy.onShutdownWork(workUnit)
-    listener.shutdownWork(workUnit)
+    try {
+      listener.shutdownWork(workUnit)
+    } finally {
+      val path = "/%s/claimed-%s/%s".format(name, config.workUnitShortName, workUnit)
+      if (deleteZNode) ZKUtils.delete(zk, path)
+    }
   }
 
 
