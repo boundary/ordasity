@@ -16,7 +16,6 @@
 
 package com.boundary.ordasity.balancing
 
-import com.codahale.simplespec.Spec
 import com.codahale.logula.Logging
 import org.junit.Test
 import com.boundary.ordasity._
@@ -24,6 +23,7 @@ import java.util.{HashMap, UUID}
 import collection.JavaConversions._
 import org.apache.zookeeper.ZooKeeper
 import com.twitter.common.zookeeper.ZooKeeperClient
+import com.simple.simplespec.Spec
 
 class CountBalancingPolicySpec extends Spec with Logging {
   Logging.configure()

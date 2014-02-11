@@ -18,7 +18,7 @@
         <dependency>
             <groupId>com.boundary</groupId>
             <artifactId>overlock-scala_${scala.version}</artifactId>
-            <version>0.8.3</version>
+            <version>0.8.4</version>
         </dependency>
 
         <dependency>
@@ -58,9 +58,9 @@
         </dependency>
         
         <dependency>
-            <groupId>com.codahale</groupId>
+            <groupId>com.simple</groupId>
             <artifactId>simplespec_${scala.version}</artifactId>
-            <version>0.5.2</version>
+            <version>0.6.0</version>
             <scope>test</scope>
         </dependency>
         
@@ -99,7 +99,6 @@
                 </executions>
                 <configuration>
                     <args>
-                        <arg>-optimise</arg>
                         <arg>-unchecked</arg>
                         <arg>-deprecation</arg>
                     </args>

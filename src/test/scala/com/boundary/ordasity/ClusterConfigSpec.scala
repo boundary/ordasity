@@ -16,10 +16,10 @@
 
 package com.boundary.ordasity
 
-import com.codahale.simplespec.Spec
 import com.codahale.logula.Logging
 import org.junit.Test
 import java.net.InetAddress
+import com.simple.simplespec.Spec
 
 class ClusterConfigSpec extends Spec with Logging {
   Logging.configure()

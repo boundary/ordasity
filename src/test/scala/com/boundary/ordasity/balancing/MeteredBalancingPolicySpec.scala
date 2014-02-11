@@ -16,7 +16,6 @@
 
 package com.boundary.ordasity.balancing
 
-import com.codahale.simplespec.Spec
 import com.codahale.logula.Logging
 import org.junit.Test
 import com.boundary.ordasity._
@@ -26,6 +25,7 @@ import com.twitter.common.zookeeper.ZooKeeperClient
 import java.util.concurrent.ScheduledFuture
 import com.yammer.metrics.scala.Meter
 import java.util.{LinkedList, HashMap, UUID}
+import com.simple.simplespec.Spec
 
 class MeteredBalancingPolicySpec extends Spec with Logging {
   Logging.configure()

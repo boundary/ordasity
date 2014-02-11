@@ -16,17 +16,16 @@
 
 package com.boundary.ordasity.balancing
 
-import com.codahale.simplespec.Spec
 import com.codahale.logula.Logging
 import org.junit.Test
 import com.boundary.ordasity._
 import java.util.{HashMap, UUID}
 import collection.JavaConversions._
-import listeners.HandoffResultsListener
 import org.apache.zookeeper.ZooKeeper
 import com.twitter.common.zookeeper.ZooKeeperClient
 import org.mockito.Mockito
 import org.apache.zookeeper.KeeperException.NodeExistsException
+import com.simple.simplespec.Spec
 
 
 class DummyBalancingPolicy(cluster: Cluster, config: ClusterConfig)

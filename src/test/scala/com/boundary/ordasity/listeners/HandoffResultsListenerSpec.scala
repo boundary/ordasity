@@ -16,7 +16,6 @@
 
 package com.boundary.ordasity.listeners
 
-import com.codahale.simplespec.Spec
 import com.codahale.logula.Logging
 import org.junit.Test
 import org.cliffc.high_scale_lib.NonBlockingHashSet
@@ -30,6 +29,7 @@ import org.mockito.{ArgumentCaptor, Mockito}
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import org.apache.zookeeper.data.Stat
 import org.apache.zookeeper.Watcher.Event.{EventType, KeeperState}
+import com.simple.simplespec.Spec
 
 class HandoffResultsListenerSpec extends Spec with Logging {
   Logging.configure()

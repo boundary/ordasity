@@ -17,15 +17,14 @@
 package com.boundary.ordasity.listeners
 
 import org.junit.Test
-import com.codahale.simplespec.Spec
 import com.codahale.logula.Logging
 
-import java.util.HashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import org.cliffc.high_scale_lib.NonBlockingHashSet
 
 import com.boundary.ordasity.{Claimer, Cluster, ClusterConfig}
 import com.boundary.ordasity.balancing.MeteredBalancingPolicy
+import com.simple.simplespec.Spec
 
 class VerifyIntegrityListenerSpec extends Spec with Logging {
   Logging.configure()

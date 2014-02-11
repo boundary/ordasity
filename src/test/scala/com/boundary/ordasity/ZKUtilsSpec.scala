@@ -16,13 +16,13 @@
 
 package com.boundary.ordasity
 
-import com.codahale.simplespec.Spec
 import com.codahale.logula.Logging
 import org.junit.Test
 import com.twitter.common.zookeeper.ZooKeeperClient
 import org.apache.zookeeper.ZooDefs.Ids
 import org.apache.zookeeper.{CreateMode, ZooKeeper}
 import org.apache.zookeeper.KeeperException.NoNodeException
+import com.simple.simplespec.Spec
 
 class ZKUtilsSpec extends Spec with Logging {
   Logging.configure()
