@@ -47,7 +47,7 @@ class ClusterConfigSpec extends Spec with Logging {
       new ClusterConfig().setAutoRebalance(false).enableAutoRebalance.must(be(false))
       new ClusterConfig().setRebalanceInterval(10000).autoRebalanceInterval.must(be(10000))
       new ClusterConfig().setZKTimeout(333).zkTimeout.must(be(333))
-      new ClusterConfig().useSmartBalancing(true).useSmartBalancing.must(be(true))
+      new ClusterConfig().setUseSmartBalancing(true).useSmartBalancing.must(be(true))
       new ClusterConfig().setDrainTime(100).drainTime.must(be(100))
       new ClusterConfig().setWorkUnitName("tacos").workUnitName.must(be("tacos"))
       new ClusterConfig().setWorkUnitShortName("taquitos").workUnitShortName.must(be("taquitos"))

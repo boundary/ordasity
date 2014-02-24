@@ -54,7 +54,9 @@ class ClusterConfig {
     this
   }
 
-  def useSmartBalancing(to: Boolean) : ClusterConfig = {
+  def useSmartBalancing(to : Boolean) = setUseSmartBalancing(to)
+
+  def setUseSmartBalancing(to: Boolean) : ClusterConfig = {
     useSmartBalancing = to
     this
   }

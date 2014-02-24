@@ -24,7 +24,7 @@ class MyService {
     setHosts("localhost:2181").
     setAutoRebalance(true).
     setRebalanceInterval(60).
-    useSmartBalancing(true).
+    setUseSmartBalancing(true).
     setDrainTime(60).
     setZKTimeout(3000)
 
