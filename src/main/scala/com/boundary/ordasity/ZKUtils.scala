@@ -16,7 +16,6 @@
 
 package com.boundary.ordasity
 
-import com.codahale.logula.Logging
 import com.twitter.common.zookeeper.{ZooKeeperUtils, ZooKeeperClient}
 
 import org.apache.zookeeper.ZooDefs.Ids
@@ -24,6 +23,7 @@ import org.apache.zookeeper.KeeperException.{NoNodeException, NodeExistsExceptio
 import org.apache.zookeeper.{WatchedEvent, Watcher, KeeperException, CreateMode}
 import org.apache.zookeeper.Watcher.Event.EventType
 import org.apache.zookeeper.data.Stat
+import com.boundary.logula.Logging
 
 object ZKUtils extends Logging {
 

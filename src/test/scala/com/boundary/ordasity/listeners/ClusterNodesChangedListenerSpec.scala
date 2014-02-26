@@ -16,14 +16,12 @@
 
 package com.boundary.ordasity.listeners
 
-import com.codahale.logula.Logging
 import org.junit.Test
 import java.util.concurrent.atomic.AtomicBoolean
 import com.boundary.ordasity.{NodeState, NodeInfo, Cluster, ClusterConfig, Claimer}
 import com.simple.simplespec.Spec
 
-class ClusterNodesChangedListenerSpec extends Spec with Logging {
-  Logging.configure()
+class ClusterNodesChangedListenerSpec extends Spec {
 
   val config = new ClusterConfig().
     setNodeId("testNode").

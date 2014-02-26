@@ -17,9 +17,9 @@
 package com.boundary.ordasity
 
 import java.nio.charset.Charset
-import com.codahale.logula.Logging
 import com.codahale.jerkson.Json
 import com.google.common.base.Function
+import com.boundary.logula.Logging
 
 /**
  * Case class representing the state of a node and its ZooKeeper connection

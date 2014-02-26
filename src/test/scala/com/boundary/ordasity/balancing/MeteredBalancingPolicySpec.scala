@@ -16,7 +16,6 @@
 
 package com.boundary.ordasity.balancing
 
-import com.codahale.logula.Logging
 import org.junit.Test
 import com.boundary.ordasity._
 import collection.JavaConversions._
@@ -27,8 +26,7 @@ import com.yammer.metrics.scala.Meter
 import java.util.{LinkedList, HashMap, UUID}
 import com.simple.simplespec.Spec
 
-class MeteredBalancingPolicySpec extends Spec with Logging {
-  Logging.configure()
+class MeteredBalancingPolicySpec extends Spec {
 
   val config = new ClusterConfig().
     setNodeId("testNode").

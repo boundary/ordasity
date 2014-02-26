@@ -17,7 +17,6 @@
 package com.boundary.ordasity
 
 import com.codahale.jerkson.Json._
-import com.codahale.logula.Logging
 import com.yammer.metrics.scala.{Meter, Instrumented}
 import java.lang.management.ManagementFactory
 import javax.management.ObjectName
@@ -38,6 +37,7 @@ import org.apache.zookeeper.{WatchedEvent, Watcher}
 import org.apache.zookeeper.Watcher.Event.KeeperState
 import java.util.concurrent.{TimeoutException, TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
 import overlock.threadpool.NamedThreadFactory
+import com.boundary.logula.Logging
 
 trait ClusterMBean {
   def join() : String

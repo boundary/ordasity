@@ -16,7 +16,6 @@
 
 package com.boundary.ordasity.balancing
 
-import com.codahale.logula.Logging
 import org.junit.Test
 import com.boundary.ordasity._
 import java.util.{HashMap, UUID}
@@ -34,8 +33,7 @@ class DummyBalancingPolicy(cluster: Cluster, config: ClusterConfig)
   def rebalance() = null
 }
 
-class BalancingPolicySpec extends Spec with Logging {
-  Logging.configure()
+class BalancingPolicySpec extends Spec {
 
   val config = new ClusterConfig().
     setNodeId("testNode").

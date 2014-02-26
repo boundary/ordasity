@@ -17,12 +17,12 @@
 package com.boundary.ordasity.balancing
 
 import collection.JavaConversions._
-import com.codahale.logula.Logging
 import com.codahale.jerkson.Json
 import com.boundary.ordasity.{ZKUtils, NodeState, ClusterConfig, Cluster}
 import com.yammer.metrics.scala.Instrumented
 import java.util.{TimerTask, LinkedList}
 import java.util.concurrent.TimeUnit
+import com.boundary.logula.Logging
 
 /**
  * A balancing policy determines how a node in an Ordasity cluster should claim /

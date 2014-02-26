@@ -16,13 +16,11 @@
 
 package com.boundary.ordasity
 
-import com.codahale.logula.Logging
 import org.junit.Test
 import com.codahale.jerkson.Json
 import com.simple.simplespec.Spec
 
-class DeserializersSpec extends Spec with Logging {
-  Logging.configure()
+class DeserializersSpec extends Spec {
 
   class `Test Deserializers` {
 

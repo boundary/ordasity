@@ -16,7 +16,6 @@
 
 package com.boundary.ordasity.listeners
 
-import com.codahale.logula.Logging
 import org.junit.Test
 import org.cliffc.high_scale_lib.NonBlockingHashSet
 import java.util.{UUID, HashMap}
@@ -31,8 +30,7 @@ import org.apache.zookeeper.data.Stat
 import org.apache.zookeeper.Watcher.Event.{EventType, KeeperState}
 import com.simple.simplespec.Spec
 
-class HandoffResultsListenerSpec extends Spec with Logging {
-  Logging.configure()
+class HandoffResultsListenerSpec extends Spec {
 
   val config = new ClusterConfig().
     setNodeId("testNode").

@@ -16,7 +16,6 @@
 
 package com.boundary.ordasity.balancing
 
-import com.codahale.logula.Logging
 import org.junit.Test
 import com.boundary.ordasity._
 import java.util.{HashMap, UUID}
@@ -25,8 +24,7 @@ import org.apache.zookeeper.ZooKeeper
 import com.twitter.common.zookeeper.ZooKeeperClient
 import com.simple.simplespec.Spec
 
-class CountBalancingPolicySpec extends Spec with Logging {
-  Logging.configure()
+class CountBalancingPolicySpec extends Spec {
 
   val config = new ClusterConfig().
     setNodeId("testNode").

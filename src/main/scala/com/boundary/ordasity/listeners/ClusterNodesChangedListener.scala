@@ -16,10 +16,10 @@
 
 package com.boundary.ordasity.listeners
 
-import com.codahale.logula.Logging
 import collection.JavaConversions._
 import com.boundary.ordasity.{Cluster, NodeInfo}
 import com.twitter.common.zookeeper.ZooKeeperMap
+import com.boundary.logula.Logging
 
 /**
  * As the nodes in an Ordasity cluster come, go, or change state, we must update

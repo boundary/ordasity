@@ -17,10 +17,10 @@
 package com.boundary.ordasity.listeners
 
 import com.boundary.ordasity._
-import com.codahale.logula.Logging
 import java.util.concurrent.TimeUnit
 import com.twitter.common.zookeeper.ZooKeeperMap
 import org.apache.zookeeper.{WatchedEvent, Watcher}
+import com.boundary.logula.Logging
 
 /* The HandoffResultsListener keeps track of the handoff state of work units
  * around the cluster. As events fire, this listener determines whether or not

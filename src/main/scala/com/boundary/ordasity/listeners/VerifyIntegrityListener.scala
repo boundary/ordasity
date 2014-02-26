@@ -16,10 +16,10 @@
 
 package com.boundary.ordasity.listeners
 
-import com.codahale.logula.Logging
 import collection.JavaConversions._
 import com.twitter.common.zookeeper.ZooKeeperMap
 import com.boundary.ordasity.{ClusterConfig, Cluster}
+import com.boundary.logula.Logging
 
 /**
  * As work units distributed about the cluster change, we must verify the

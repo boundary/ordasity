@@ -16,13 +16,11 @@
 
 package com.boundary.ordasity
 
-import com.codahale.logula.Logging
 import org.junit.Test
 import java.net.InetAddress
 import com.simple.simplespec.Spec
 
-class ClusterConfigSpec extends Spec with Logging {
-  Logging.configure()
+class ClusterConfigSpec extends Spec {
 
   class `Test Cluster Config` {
     @Test def `test defaults` {

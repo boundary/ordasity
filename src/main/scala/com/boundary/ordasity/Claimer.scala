@@ -1,7 +1,7 @@
 package com.boundary.ordasity
 
 import java.util.concurrent.BlockingQueue
-import com.codahale.logula.Logging
+import com.boundary.logula.Logging
 
 /**
  * Thread responsible for claiming work in Ordasity. This thread waits for a

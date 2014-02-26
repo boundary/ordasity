@@ -18,7 +18,6 @@ package com.boundary.ordasity
 
 import collection.JavaConversions._
 import balancing.{CountBalancingPolicy, BalancingPolicy}
-import com.codahale.logula.Logging
 import org.junit.Test
 import java.util.{UUID, HashMap}
 import com.codahale.jerkson.Json
@@ -27,9 +26,9 @@ import org.apache.zookeeper.ZooDefs.Ids
 import com.twitter.common.zookeeper.{ZooKeeperMap, ZooKeeperClient}
 import org.apache.zookeeper.{Watcher, CreateMode, ZooKeeper}
 import com.simple.simplespec.Spec
+import com.boundary.logula.Logging
 
 class ClusterSpec extends Spec with Logging {
-  Logging.configure()
 
   val id = UUID.randomUUID().toString
   val config = new ClusterConfig().
