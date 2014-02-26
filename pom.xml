@@ -3,7 +3,7 @@
 
     <groupId>com.boundary</groupId>
     <artifactId>ordasity-scala_2.9.1</artifactId>
-    <version>0.5.12</version>
+    <version>0.5.13-SNAPSHOT</version>
     <name>Ordasity</name>
     <url>http://www.boundary.com</url>
     <packaging>jar</packaging>
