@@ -62,7 +62,7 @@ Let's get started with an example. Here's how to build a clustered service in 25
         def onLeave() { }
       }
 
-      val config = new ClusterConfig().setHosts("localhost:2181")
+      val config = ClusterConfig.builder().setHosts("localhost:2181").build()
       val cluster = new Cluster("ServiceName", listener, config)
 
       cluster.join()
@@ -168,10 +168,10 @@ Ordasity supports automatic and manual rebalancing to even out the cluster's loa
 To trigger a manual rebalance on all nodes, touch "/service-name/meta/rebalance" in Zookeeper. However, automatic rebalancing is preferred. To enable it, just turn it on in your cluster config:
 
 ```scala
-    val config = new ClusterConfig().
+    val config = ClusterConfig.builder().
       setHosts("localhost:2181").
       setAutoRebalance(true).
-      setRebalanceInterval(60 * 60) // One hour
+      setRebalanceInterval(60 * 60).build() // One hour
 ```
 
 As a masterless service, the rebalance process is handled uncoordinated by the node itself. The rebalancing logic is very simple. If a node has more than its fair share of work when a rebalance is triggered, it will drain or release this work to other nodes in the cluster. As the cluster sees this work become available, lighter-loaded nodes will claim it (or receive handoff) and begin processing.
@@ -217,7 +217,7 @@ The *drainToCount* and *drainToLoad* strategies invoked by a rebalance will rele
 Ordasity allows you to configure the period of time for a drain to complete: 
 
 ```scala
-    val config = new ClusterConfig().setHosts("localhost:2181").setDrainTime(60) // 60 Seconds
+    val config = ClusterConfig.builder().setHosts("localhost:2181").setDrainTime(60).build() // 60 Seconds
 ```
 
 When a drain is initiated, Ordasity will pace the release of work units over the time specified. If 15 work units were to be released over a 60-second period, the library would release one every four seconds.
@@ -232,10 +232,10 @@ When Handoff is enabled, Ordasity will allow another node to begin processing fo
 To enable it, just turn it on in your ClusterConfig:
 
 ```scala
-    val clusterConfig = new ClusterConfig().
+    val clusterConfig = ClusterConfig.builder().
       setHosts("localhost:2181").
       setUseSoftHandoff(true).
-      setHandoffShutdownDelay(10) // Seconds
+      setHandoffShutdownDelay(10).build() // Seconds
 ```
 
 The handoff process is fairly straightforward. When a node has decided to release a work unit (either due to a rebalance or because it is being drained for shutdown), it creates an entry in Zookeeper at /service-name/handoff-requests. Following their count-based or load-based claiming policies, other nodes will claim the work being handed off by creating an entry at /service-name/handoff-results.

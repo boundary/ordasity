@@ -26,12 +26,12 @@ import com.simple.simplespec.Spec
 
 class CountBalancingPolicySpec extends Spec {
 
-  val config = new ClusterConfig().
+  val config = ClusterConfig.builder().
     setNodeId("testNode").
-    setRebalanceInterval(1).
+    setAutoRebalanceInterval(1).
     setDrainTime(1).
     setHosts("no_existe:2181").
-    setAutoRebalance(false)
+    setEnableAutoRebalance(false).build()
 
   class `Count Balancing Policy` {
 

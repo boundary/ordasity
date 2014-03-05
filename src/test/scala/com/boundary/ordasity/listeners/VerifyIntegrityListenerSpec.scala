@@ -27,11 +27,11 @@ import com.simple.simplespec.Spec
 
 class VerifyIntegrityListenerSpec extends Spec {
 
-  val config = new ClusterConfig().
+  val config = ClusterConfig.builder().
     setNodeId("testNode").
-    setRebalanceInterval(1).
+    setAutoRebalanceInterval(1).
     setDrainTime(1).
-    setHosts("no_existe:2181")
+    setHosts("no_existe:2181").build()
 
   class `Verify Integrity Listener` {
 

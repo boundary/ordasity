@@ -35,12 +35,12 @@ class DummyBalancingPolicy(cluster: Cluster, config: ClusterConfig)
 
 class BalancingPolicySpec extends Spec {
 
-  val config = new ClusterConfig().
+  val config = ClusterConfig.builder().
     setNodeId("testNode").
-    setRebalanceInterval(1).
+    setAutoRebalanceInterval(1).
     setDrainTime(1).
     setHosts("no_existe:2181").
-    setAutoRebalance(false)
+    setEnableAutoRebalance(false).build()
 
   class `Base Balancing Policy Tests` {
     

@@ -17,78 +17,86 @@
 package com.boundary.ordasity
 
 import java.net.InetAddress
-import org.codehaus.jackson.annotate.JsonProperty
+import scala.reflect.BeanProperty
 
 class ClusterConfig {
 
   // Defaults
-  @JsonProperty var hosts = ""
-  @JsonProperty var enableAutoRebalance = true
-  @JsonProperty var autoRebalanceInterval = 60
-  @JsonProperty var drainTime = 60
-  @JsonProperty var useSmartBalancing = false
-  @JsonProperty var zkTimeout = 3000
-  @JsonProperty var workUnitName = "work-units"
-  @JsonProperty var workUnitShortName = "work"
-  @JsonProperty var nodeId = InetAddress.getLocalHost.getHostName
-  @JsonProperty var useSoftHandoff = false
-  @JsonProperty var handoffShutdownDelay = 10
+  @BeanProperty var hosts = ""
+  @BeanProperty var enableAutoRebalance = true
+  @BeanProperty var autoRebalanceInterval = 60
+  @BeanProperty var drainTime = 60
+  @BeanProperty var useSmartBalancing = false
+  @BeanProperty var zkTimeout = 3000
+  @BeanProperty var workUnitName = "work-units"
+  @BeanProperty var workUnitShortName = "work"
+  @BeanProperty var nodeId = InetAddress.getLocalHost.getHostName
+  @BeanProperty var useSoftHandoff = false
+  @BeanProperty var handoffShutdownDelay = 10
 
-  def setHosts(to: String) : ClusterConfig = {
-    hosts = to
+}
+
+object ClusterConfig {
+  def builder() = new ClusterConfigBuilder(new ClusterConfig)
+}
+
+class ClusterConfigBuilder(config: ClusterConfig) {
+  def setHosts(hosts: String) : ClusterConfigBuilder = {
+    config.hosts = hosts
     this
   }
 
-  def setAutoRebalance(to: Boolean) : ClusterConfig = {
-    enableAutoRebalance = to
+  def setEnableAutoRebalance(enableAutoRebalance: Boolean) : ClusterConfigBuilder = {
+    config.enableAutoRebalance = enableAutoRebalance
     this
   }
 
-  def setRebalanceInterval(to: Int) : ClusterConfig = {
-    autoRebalanceInterval = to
+  def setAutoRebalanceInterval(autoRebalanceInterval: Int) : ClusterConfigBuilder = {
+    config.autoRebalanceInterval = autoRebalanceInterval
     this
   }
 
-  def setZKTimeout(to: Int) : ClusterConfig = {
-    zkTimeout = to
+  def setZkTimeout(zkTimeout: Int) : ClusterConfigBuilder = {
+    config.zkTimeout = zkTimeout
     this
   }
 
-  def useSmartBalancing(to : Boolean) = setUseSmartBalancing(to)
-
-  def setUseSmartBalancing(to: Boolean) : ClusterConfig = {
-    useSmartBalancing = to
+  def setUseSmartBalancing(useSmartBalancing: Boolean) : ClusterConfigBuilder = {
+    config.useSmartBalancing = useSmartBalancing
     this
   }
 
-  def setDrainTime(to: Int) : ClusterConfig = {
-    drainTime = to
+  def setDrainTime(drainTime: Int) : ClusterConfigBuilder = {
+    config.drainTime = drainTime
     this
   }
 
-  def setWorkUnitName(to: String) : ClusterConfig = {
-    workUnitName = to
+  def setWorkUnitName(workUnitName: String) : ClusterConfigBuilder = {
+    config.workUnitName = workUnitName
     this
   }
 
-  def setWorkUnitShortName(to: String) : ClusterConfig = {
-    workUnitShortName = to
+  def setWorkUnitShortName(workUnitShortName: String) : ClusterConfigBuilder = {
+    config.workUnitShortName = workUnitShortName
     this
   }
 
-  def setNodeId(to: String) : ClusterConfig = {
-    nodeId = to
+  def setNodeId(nodeId: String) : ClusterConfigBuilder = {
+    config.nodeId = nodeId
     this
   }
 
-  def setUseSoftHandoff(to: Boolean) : ClusterConfig = {
-    useSoftHandoff = to
+  def setUseSoftHandoff(useSoftHandoff: Boolean) : ClusterConfigBuilder = {
+    config.useSoftHandoff = useSoftHandoff
     this
   }
 
-  def setHandoffShutdownDelay(to: Int) : ClusterConfig = {
-    handoffShutdownDelay = to
+  def setHandoffShutdownDelay(handoffShutdownDelay: Int) : ClusterConfigBuilder = {
+    config.handoffShutdownDelay = handoffShutdownDelay
     this
   }
 
+  def build() : ClusterConfig = {
+    config
+  }
 }
