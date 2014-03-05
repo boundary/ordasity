@@ -32,12 +32,12 @@ import com.simple.simplespec.Spec
 
 class HandoffResultsListenerSpec extends Spec {
 
-  val config = new ClusterConfig().
+  val config = ClusterConfig.builder().
     setNodeId("testNode").
-    setRebalanceInterval(1).
+    setAutoRebalanceInterval(1).
     setDrainTime(1).
     setHosts("no_existe:2181").
-    setHandoffShutdownDelay(1)
+    setHandoffShutdownDelay(1).build()
 
   class `Handoff Results Listener` {
 

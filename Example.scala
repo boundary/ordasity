@@ -17,13 +17,10 @@
 import java.util.Random
 import java.util.concurrent.CountDownLatch
 import com.boundary.ordasity.{Cluster, ClusterConfig, SmartListener}
-import com.codahale.logula.Logging
 import com.yammer.metrics.scala.Meter
 import com.twitter.common.zookeeper.ZooKeeperClient
 import java.util.concurrent.{ScheduledThreadPoolExecutor, TimeUnit, ScheduledFuture}
 import java.util.{HashMap, TimerTask}
-
-Logging.configure
 
 val random = new Random()
 val latch = new CountDownLatch(1)
@@ -31,15 +28,15 @@ val pool = new ScheduledThreadPoolExecutor(1)
 
 val futures = new HashMap[String, ScheduledFuture[_]]
 
-val config = new ClusterConfig().
+val config = ClusterConfig.builder().
   setHosts("localhost:2181").
-  setAutoRebalance(true).
-  setRebalanceInterval(15).
-  useSmartBalancing(true).
+  setEnableAutoRebalance(true).
+  setAutoRebalanceInterval(15).
+  setUseSmartBalancing(true).
   setDrainTime(3).
-  setZKTimeout(3).
+  setZkTimeout(3).
   setUseSoftHandoff(true).
-  setNodeId(java.util.UUID.randomUUID().toString)
+  setNodeId(java.util.UUID.randomUUID().toString).build()
 
 val listener = new SmartListener {
   def onJoin(client: ZooKeeperClient) = {}

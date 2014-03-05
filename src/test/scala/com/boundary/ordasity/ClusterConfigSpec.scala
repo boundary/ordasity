@@ -41,17 +41,17 @@ class ClusterConfigSpec extends Spec {
 
 
     @Test def `test mutators` {
-      new ClusterConfig().setHosts("foo").hosts.must(be("foo"))
-      new ClusterConfig().setAutoRebalance(false).enableAutoRebalance.must(be(false))
-      new ClusterConfig().setRebalanceInterval(10000).autoRebalanceInterval.must(be(10000))
-      new ClusterConfig().setZKTimeout(333).zkTimeout.must(be(333))
-      new ClusterConfig().setUseSmartBalancing(true).useSmartBalancing.must(be(true))
-      new ClusterConfig().setDrainTime(100).drainTime.must(be(100))
-      new ClusterConfig().setWorkUnitName("tacos").workUnitName.must(be("tacos"))
-      new ClusterConfig().setWorkUnitShortName("taquitos").workUnitShortName.must(be("taquitos"))
-      new ClusterConfig().setNodeId("skelter").nodeId.must(be("skelter"))
-      new ClusterConfig().setUseSoftHandoff(true).useSoftHandoff.must(be(true))
-      new ClusterConfig().setHandoffShutdownDelay(90).handoffShutdownDelay.must(be(90))
+      ClusterConfig.builder().setHosts("foo").build().hosts.must(be("foo"))
+      ClusterConfig.builder().setEnableAutoRebalance(false).build().enableAutoRebalance.must(be(false))
+      ClusterConfig.builder().setAutoRebalanceInterval(10000).build().autoRebalanceInterval.must(be(10000))
+      ClusterConfig.builder().setZkTimeout(333).build().zkTimeout.must(be(333))
+      ClusterConfig.builder().setUseSmartBalancing(true).build().useSmartBalancing.must(be(true))
+      ClusterConfig.builder().setDrainTime(100).build().drainTime.must(be(100))
+      ClusterConfig.builder().setWorkUnitName("tacos").build().workUnitName.must(be("tacos"))
+      ClusterConfig.builder().setWorkUnitShortName("taquitos").build().workUnitShortName.must(be("taquitos"))
+      ClusterConfig.builder().setNodeId("skelter").build().nodeId.must(be("skelter"))
+      ClusterConfig.builder().setUseSoftHandoff(true).build().useSoftHandoff.must(be(true))
+      ClusterConfig.builder().setHandoffShutdownDelay(90).build().handoffShutdownDelay.must(be(90))
     }
   }
 }
