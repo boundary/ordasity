@@ -23,6 +23,8 @@ import collection.JavaConversions._
 import org.apache.zookeeper.ZooKeeper
 import com.twitter.common.zookeeper.ZooKeeperClient
 import com.simple.simplespec.Spec
+import org.apache.zookeeper.data.Stat
+import com.google.common.base.Charsets
 
 class CountBalancingPolicySpec extends Spec {
 
@@ -43,7 +45,7 @@ class CountBalancingPolicySpec extends Spec {
         cluster.allWorkUnits.put(el, el))
 
       balancer.activeNodeSize().must(be(2))
-      balancer.fairShare.must(be(4))
+      balancer.fairShare().must(be(4))
     }
 
 
@@ -55,6 +57,10 @@ class CountBalancingPolicySpec extends Spec {
       cluster.myWorkUnits.addAll(workUnits)
       workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
       workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
+      workUnits.foreach(el =>
+        cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
+          .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
+      )
 
       balancer.rebalance()
 

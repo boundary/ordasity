@@ -42,9 +42,13 @@ class VerifyIntegrityListenerSpec extends Spec {
       cluster.workUnitsPeggedToMe.returns(new NonBlockingHashSet[String])
       cluster.balancingPolicy.returns(new MeteredBalancingPolicy(cluster, config))
       cluster.myNodeID.returns("testNode")
-      val claimer = new Claimer(cluster)
-      claimer.start
+      val claimer = mock[Claimer]
+      claimer.start()
       cluster.claimer.returns(claimer)
+      claimer.requestClaim().answersWith(invocation => {
+        cluster.claimWork()
+        true
+      })
 
       val listener = new VerifyIntegrityListener(cluster, config)
       listener.nodeChanged("foo", "bar")
@@ -58,9 +62,13 @@ class VerifyIntegrityListenerSpec extends Spec {
       cluster.watchesRegistered.returns(new AtomicBoolean(true))
       cluster.initialized.returns(new AtomicBoolean(true))
 
-      val claimer = new Claimer(cluster)
-      claimer.start
+      val claimer = mock[Claimer]
+      claimer.start()
       cluster.claimer.returns(claimer)
+      claimer.requestClaim().answersWith(invocation => {
+        cluster.claimWork()
+        true
+      })
 
       val listener = new VerifyIntegrityListener(cluster, config)
       listener.nodeRemoved("foo")

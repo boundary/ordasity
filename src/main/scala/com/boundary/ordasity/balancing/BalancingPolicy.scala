@@ -118,7 +118,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
 
     val path = {
       if (claimForHandoff) "/%s/handoff-result/%s".format(cluster.name, workUnit)
-      else "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
+      else cluster.workUnitClaimPath(workUnit)
     }
 
     val created = ZKUtils.createEphemeral(cluster.zk, path, cluster.myNodeID)
@@ -140,7 +140,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
    * (i.e., deleted by the node which previously owned it).
    */
   protected def claimWorkPeggedToMe(workUnit: String) {
-    val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
+    val path = cluster.workUnitClaimPath(workUnit)
 
     while (true) {
       if (ZKUtils.createEphemeral(cluster.zk, path, cluster.myNodeID) || cluster.znodeIsMe(path)) {

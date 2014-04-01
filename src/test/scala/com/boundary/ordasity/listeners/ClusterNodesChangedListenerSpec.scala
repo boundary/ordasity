@@ -36,9 +36,13 @@ class ClusterNodesChangedListenerSpec extends Spec {
       cluster.watchesRegistered.returns(new AtomicBoolean(true))
       cluster.initialized.returns(new AtomicBoolean(true))
 
-      val claimer = new Claimer(cluster)
-      claimer.start
+      val claimer = mock[Claimer]
+      claimer.start()
       cluster.claimer.returns(claimer)
+      claimer.requestClaim().answersWith(invocation => {
+        cluster.claimWork()
+        true
+      })
 
       val listener = new ClusterNodesChangedListener(cluster)
       listener.nodeChanged("foo", NodeInfo(NodeState.Started.toString, 0L))
@@ -52,9 +56,12 @@ class ClusterNodesChangedListenerSpec extends Spec {
       cluster.watchesRegistered.returns(new AtomicBoolean(true))
       cluster.initialized.returns(new AtomicBoolean(true))
 
-      val claimer = new Claimer(cluster)
-      claimer.start
+      val claimer = mock[Claimer]
       cluster.claimer.returns(claimer)
+      claimer.requestClaim().answersWith(invocation => {
+        cluster.claimWork()
+        true
+      })
 
       val listener = new ClusterNodesChangedListener(cluster)
       listener.nodeRemoved("foo")

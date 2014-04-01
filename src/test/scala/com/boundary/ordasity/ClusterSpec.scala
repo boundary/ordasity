@@ -26,9 +26,12 @@ import org.apache.zookeeper.ZooDefs.Ids
 import com.twitter.common.zookeeper.{ZooKeeperMap, ZooKeeperClient}
 import org.apache.zookeeper.{Watcher, CreateMode, ZooKeeper}
 import com.simple.simplespec.Spec
-import com.boundary.logula.Logging
+import com.google.common.base.Charsets
+import org.mockito.invocation.InvocationOnMock
+import org.apache.zookeeper.KeeperException.NoNodeException
+import java.util.concurrent.{TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
 
-class ClusterSpec extends Spec with Logging {
+class ClusterSpec extends Spec {
 
   val id = UUID.randomUUID().toString
   val config = ClusterConfig.builder().
@@ -47,7 +50,7 @@ class ClusterSpec extends Spec with Logging {
 
       val mockZKClient = mock[ZooKeeper]
       mockZKClient.getSessionId.returns(101L)
-      mockZKClient.getData("/%s/nodes/testNode".format(id), false, null).
+      mockZKClient.getData(equalTo("/%s/nodes/testNode".format(id)), any[Boolean], any[Stat]).
         returns(Json.generate(nodeInfo).getBytes)
 
       val mockZK = mock[ZooKeeperClient]
@@ -83,13 +86,13 @@ class ClusterSpec extends Spec with Logging {
       val (mockZK, mockZKClient) = getMockZK()
       cluster.zk = mockZKClient
 
-      mockZK.getData(path, false, null).returns("testNode".getBytes)
+      mockZK.getData(equalTo(path), any[Boolean], any[Stat]).returns("testNode".getBytes)
       cluster.znodeIsMe(path).must(be(true))
-      verify.one(mockZK).getData(path, false, null)
+      verify.one(mockZK).getData(equalTo(path), any[Boolean], any[Stat])
 
-      mockZK.getData(path, false, null).returns("SOME OTHER NODE".getBytes)
+      mockZK.getData(equalTo(path), any[Boolean], any[Stat]).returns("SOME OTHER NODE".getBytes)
       cluster.znodeIsMe(path).must(be(false))
-      verify.exactly(2)(mockZK).getData(path, false, null)
+      verify.exactly(2)(mockZK).getData(equalTo(path), any[Boolean], any[Stat])
     }
 
     @Test def `rebalance invokes rebalance (only if not fresh)` {
@@ -110,7 +113,7 @@ class ClusterSpec extends Spec with Logging {
       cluster.balancingPolicy = policy
 
       val work = "taco"
-      val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, work)
+      val path = cluster.workUnitClaimPath(work)
 
       val (mockZK, mockZKClient) = getMockZK()
       cluster.zk = mockZKClient
@@ -119,19 +122,23 @@ class ClusterSpec extends Spec with Logging {
       cluster.myWorkUnits.add(work)
       cluster.myWorkUnits.contains(work).must(be(true))
 
-      // First, test the case where we request the ZNode be deleted.
-      cluster.shutdownWork(work, doLog = false, deleteZNode = true)
-      verify.one(mockZK).delete(path, -1)
+      mockZK.getData(equalTo(path), any[Boolean], any[Stat]).answersWith((inv: InvocationOnMock) => {
+        inv.getArguments()(2).asInstanceOf[Stat].setVersion(100)
+        cluster.myNodeID.getBytes(Charsets.UTF_8)
+      })
+      cluster.shutdownWork(work, doLog = false)
+      verify.one(mockZK).delete(path, 100)
       verify.one(policy).onShutdownWork(work)
       verify.one(mockClusterListener).shutdownWork(work)
       cluster.myWorkUnits.contains(work).must(be(false))
 
       // Then, test the case where we do not want the ZNode to be deleted.
       val (mockZK2, mockZKClient2) = getMockZK()
+      mockZK2.getData(equalTo(path), any[Boolean], any[Stat]).returns("othernode".getBytes(Charsets.UTF_8))
       cluster.zk = mockZKClient2
       cluster.myWorkUnits.add(work)
-      cluster.shutdownWork(work, doLog = false, deleteZNode = false)
-      verify.exactly(0)(mockZK2).delete(path, -1)
+      cluster.shutdownWork(work, doLog = false)
+      verify.exactly(0)(mockZK2).delete(equalTo(path), any[Int])
       cluster.myWorkUnits.contains(work).must(be(false))
     }
 
@@ -156,12 +163,10 @@ class ClusterSpec extends Spec with Logging {
       cluster.state.set(NodeState.Started)
       verify.exactly(0)(pol).rebalance()
 
-      log.info("Waiting one second for rebalance future to invoke.")
       cluster.scheduleRebalancing()
       Thread.sleep(1200)
       verify.one(pol).rebalance()
 
-      log.info("Waiting one second for rebalance future to invoke again...")
       Thread.sleep(1000)
       verify.exactly(2)(pol).rebalance()
 
@@ -171,6 +176,8 @@ class ClusterSpec extends Spec with Logging {
 
     @Test def `ensure clean startup` {
       val pol = mock[BalancingPolicy]
+      val (mockZK, mockZKClient) = getMockZK()
+      cluster.zk = mockZKClient
       cluster.balancingPolicy = pol
 
       cluster.myWorkUnits.add("foo")
@@ -178,6 +185,9 @@ class ClusterSpec extends Spec with Logging {
       cluster.workUnitsPeggedToMe.add("baz")
       cluster.state.set(NodeState.Draining)
       cluster.allWorkUnits = new HashMap[String, String]
+
+      mockZK.getData(equalTo(cluster.workUnitClaimPath("foo")), any[Boolean], any[Stat])
+        .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
 
       cluster.ensureCleanStartup()
       verify.one(pol).shutdown()
@@ -221,7 +231,7 @@ class ClusterSpec extends Spec with Logging {
       cluster.myWorkUnits.clear()
       cluster.allWorkUnits = new HashMap[String, String]
 
-      val (mockZK, mockZKClient) = getMockZK()
+      val (_, mockZKClient) = getMockZK()
       cluster.zk = mockZKClient
 
       cluster.state.set(NodeState.Started)
@@ -239,11 +249,15 @@ class ClusterSpec extends Spec with Logging {
     }
 
     @Test def `force shutdown` {
+      val (mockZK, mockZKClient) = getMockZK()
+      cluster.zk = mockZKClient
       val pol = mock[BalancingPolicy]
       cluster.balancingPolicy = pol
       cluster.myWorkUnits.add("foo")
       cluster.allWorkUnits = new HashMap[String, String]
-      
+
+      mockZK.getData(equalTo(cluster.workUnitClaimPath("foo")), any[Boolean], any[Stat])
+        .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
       cluster.forceShutdown()
 
       // Must cancel the auto rebalance future
@@ -302,11 +316,18 @@ class ClusterSpec extends Spec with Logging {
       cluster.myWorkUnits.addAll(noLongerMine)
       cluster.myWorkUnits.addAll(claimedForHandoff)
 
+      nonexistent.foreach(el =>
+        cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
+          .throws(new NoNodeException())
+      )
+
       val workUnitMap = collection.mutable.Map(
         "foo" -> "testNode", "bar" -> "bar", "baz" -> "baz",
         "dong" -> "testNode", "taco" -> "bong")
 
       val peg = Json.generate(Map(id -> "NOTTESTNODE"))
+      cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath("dong")), any[Boolean], any[Stat])
+        .returns("NOTTESTNODE".getBytes(Charsets.UTF_8))
       val allUnits = collection.mutable.Map(
         "foo" -> "", "bar" -> "", "baz" -> "", "dong" -> peg, "taco" -> "")
 
@@ -314,8 +335,12 @@ class ClusterSpec extends Spec with Logging {
       cluster.workUnitMap.putAll(workUnitMap)
       cluster.claimedForHandoff.addAll(claimedForHandoff)
 
-      mockZK.getData("/%s/claimed-work/bar".format(id), false, null).returns("testNode".getBytes)
-      mockZK.getData("/%s/claimed-work/baz".format(id), false, null).returns("someoneElse".getBytes)
+      nonexistent.foreach(node =>
+        mockZK.getData(equalTo(cluster.workUnitClaimPath(node)), any[Boolean], any[Stat]).throws(new NoNodeException())
+      )
+
+      mockZK.getData(equalTo(cluster.workUnitClaimPath("bar")), any[Boolean], any[Stat]).returns("testNode".getBytes)
+      mockZK.getData(equalTo(cluster.workUnitClaimPath("baz")), any[Boolean], any[Stat]).returns("someoneElse".getBytes)
 
       cluster.verifyIntegrity()
 
@@ -343,7 +368,7 @@ class ClusterSpec extends Spec with Logging {
       // Ensure that previousZKSessionStillActive() returns true
       val nodeInfo = NodeInfo(NodeState.Started.toString, 101L)
       mockZK.getSessionId.returns(101L)
-      mockZK.getData("/%s/nodes/testNode".format(id), false, null).
+      mockZK.getData(equalTo("/%s/nodes/testNode".format(id)), any[Boolean], any[Stat]).
         returns(Json.generate(nodeInfo).getBytes)
 
       cluster.onConnect()
@@ -363,7 +388,7 @@ class ClusterSpec extends Spec with Logging {
       // Ensure that previousZKSessionStillActive() returns false
       val nodeInfo = NodeInfo(NodeState.Started.toString, 102L)
       mockZK.getSessionId.returns(101L)
-      mockZK.getData("/%s/nodes/testNode".format(id), false, null).
+      mockZK.getData(equalTo("/%s/nodes/testNode".format(id)), any[Boolean], any[Stat]).
         returns(Json.generate(nodeInfo).getBytes)
 
       // Pretend that the paths exist for the ZooKeeperMaps we're creating
@@ -372,6 +397,8 @@ class ClusterSpec extends Spec with Logging {
       // Ensure that on an unclean startup, the "ensureCleanStartup" method is
       // called, which clears out existing work units among other things.
       cluster.myWorkUnits.add("foo")
+      cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath("foo")), any[Boolean], any[Stat])
+        .throws(new NoNodeException())
       cluster.onConnect()
       cluster.myWorkUnits.isEmpty.must(be(true))
     }
