@@ -23,6 +23,7 @@ import org.apache.zookeeper.{CreateMode, ZooKeeper}
 import org.apache.zookeeper.KeeperException.NoNodeException
 import com.simple.simplespec.Spec
 import com.boundary.logula.Logging
+import org.apache.zookeeper.data.Stat
 
 class ZKUtilsSpec extends Spec with Logging {
 
@@ -101,7 +102,7 @@ class ZKUtilsSpec extends Spec with Logging {
       val (mockZK, mockZKClient) = getMockZK()
       val path = "/foo"
       val data = "ohai"
-      mockZK.getData(path, false, null).returns(data.getBytes)
+      mockZK.getData(equalTo(path), any[Boolean], any[Stat]).returns(data.getBytes)
 
       ZKUtils.get(mockZKClient, path).must(be(data))
     }

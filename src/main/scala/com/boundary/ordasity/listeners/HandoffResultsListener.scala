@@ -70,7 +70,7 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
       def run() {
         log.info("Shutting down %s following handoff to %s.",
           workUnit, cluster.getOrElse(cluster.handoffResults, workUnit, "(None)"))
-        cluster.shutdownWork(workUnit, doLog = false, deleteZNode = true)
+        cluster.shutdownWork(workUnit, doLog = false)
 
         if (cluster.myWorkUnits.size() == 0 && cluster.state.get() == NodeState.Draining)
           cluster.shutdown()
@@ -87,7 +87,7 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
     log.info("Handoff of %s to me acknowledged. Deleting claim ZNode for %s and waiting for %s to " +
       "shutdown work.", workUnit, workUnit, cluster.getOrElse(cluster.workUnitMap, workUnit, "(None)"))
 
-    val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
+    val path = cluster.workUnitClaimPath(workUnit)
     val completeHandoff = () => {
       try {
         log.info("Completing handoff of %s", workUnit)

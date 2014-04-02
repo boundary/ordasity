@@ -225,7 +225,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     balancingPolicy.shutdown()
     if (autoRebalanceFuture.isDefined) autoRebalanceFuture.get.cancel(true)
     log.warn("Forcible shutdown initiated due to connection loss...")
-    myWorkUnits.map(w => shutdownWork(w, true, false))
+    myWorkUnits.map(w => shutdownWork(w))
     myWorkUnits.clear()
     listener.onLeave()
   }
@@ -423,7 +423,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     // Check the status of pegged work units to ensure that this node is not serving
     // a work unit that is pegged to another node in the cluster.
     myWorkUnits.map { workUnit =>
-      val claimPath = "/%s/claimed-%s/%s".format(name, config.workUnitShortName, workUnit)
+      val claimPath = workUnitClaimPath(workUnit)
       if (!balancingPolicy.isFairGame(workUnit) && !balancingPolicy.isPeggedToMe(workUnit)) {
         log.info("Discovered I'm serving a work unit that's now " +
           "pegged to someone else. Shutting down %s", workUnit)
@@ -433,9 +433,13 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
           !claimedForHandoff.contains(workUnit) && !znodeIsMe(claimPath)) {
         log.info("Discovered I'm serving a work unit that's now " +
           "claimed by %s according to ZooKeeper. Shutting down %s", workUnitMap.get(workUnit), workUnit)
-        shutdownWork(workUnit, true, false)
+        shutdownWork(workUnit)
       }
     }
+  }
+
+  def workUnitClaimPath(workUnit: String) = {
+    "/%s/claimed-%s/%s".format(name, config.workUnitShortName, workUnit)
   }
 
 
@@ -468,7 +472,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   /**
    * Shuts down a work unit by removing the claim in ZK and calling the listener.
    */
-  def shutdownWork(workUnit: String, doLog: Boolean = true, deleteZNode: Boolean = true) {
+  def shutdownWork(workUnit: String, doLog: Boolean = true) {
     if (doLog) log.info("Shutting down %s: %s...", config.workUnitName, workUnit)
     myWorkUnits.remove(workUnit)
     claimedForHandoff.remove(workUnit)
@@ -476,8 +480,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     try {
       listener.shutdownWork(workUnit)
     } finally {
-      val path = "/%s/claimed-%s/%s".format(name, config.workUnitShortName, workUnit)
-      if (deleteZNode) ZKUtils.delete(zk, path)
+      ZKUtils.deleteAtomic(zk, workUnitClaimPath(workUnit), myNodeID)
     }
   }
 

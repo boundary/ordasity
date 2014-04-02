@@ -77,7 +77,7 @@ class HandoffResultsListenerSpec extends Spec {
       val listener = new HandoffResultsListener(cluster, config)
       listener.shutdownAfterHandoff(workUnit).run()
 
-      verify.one(cluster).shutdownWork(workUnit, false, true)
+      verify.one(cluster).shutdownWork(workUnit, doLog = false)
       verify.no(cluster).shutdown()
     }
 
@@ -100,14 +100,14 @@ class HandoffResultsListenerSpec extends Spec {
       listener.shutdownAfterHandoff(workUnit).run()
 
       // First, verify that we don't trigger full shutdown with a work unit remaining.
-      verify.one(cluster).shutdownWork(workUnit, false, true)
+      verify.one(cluster).shutdownWork(workUnit, doLog = false)
       verify.no(cluster).shutdown()
 
       myWorkUnits.clear()
 
       // Then, verify that we do trigger shutdown once the work unit set is empty.
       listener.shutdownAfterHandoff(workUnit).run()
-      verify.exactly(2)(cluster).shutdownWork(workUnit, false, true)
+      verify.exactly(2)(cluster).shutdownWork(workUnit, doLog = false)
       verify.one(cluster).shutdown()
     }
 
@@ -127,7 +127,7 @@ class HandoffResultsListenerSpec extends Spec {
 
       val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
       mockZK.create(path, cluster.myNodeID.getBytes, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL).returns("")
-      mockZK.getData(path, false, null).returns("otherNode".getBytes)
+      mockZK.getData(equalTo(path), any[Boolean], any[Stat]).returns("otherNode".getBytes)
 
       val captureWatchter = ArgumentCaptor.forClass(classOf[Watcher])
       Mockito.when(mockZK.exists(equalTo(path), captureWatchter.capture())).thenReturn(new Stat())
@@ -174,7 +174,7 @@ class HandoffResultsListenerSpec extends Spec {
       cluster.zk = mockZKClient
 
       val path = "/%s/claimed-%s/%s".format(cluster.name, config.workUnitShortName, workUnit)
-      mockZK.getData(path, false, null).returns("otherNode".getBytes)
+      mockZK.getData(equalTo(path), any[Boolean], any[Stat]).returns("otherNode".getBytes)
 
       Mockito.when(mockZK.create(path, cluster.myNodeID.getBytes, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL)).
         thenReturn("")
@@ -244,39 +244,9 @@ class HandoffResultsListenerSpec extends Spec {
 
       Thread.sleep((config.handoffShutdownDelay * 1000) + 100)
 
-      verify.one(cluster).shutdownWork(workUnit, false, true)
+      verify.one(cluster).shutdownWork(workUnit, doLog = false)
       verify.no(cluster).shutdown()
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

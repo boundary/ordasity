@@ -25,6 +25,8 @@ import com.twitter.common.zookeeper.ZooKeeperClient
 import org.mockito.Mockito
 import org.apache.zookeeper.KeeperException.NodeExistsException
 import com.simple.simplespec.Spec
+import org.apache.zookeeper.data.Stat
+import com.google.common.base.Charsets
 
 
 class DummyBalancingPolicy(cluster: Cluster, config: ClusterConfig)
@@ -123,6 +125,10 @@ class BalancingPolicySpec extends Spec {
       cluster.myWorkUnits.addAll(workUnits)
       workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
       workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
+      workUnits.foreach(el =>
+        cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
+          .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
+      )
 
       balancer.drainToCount(0)
 
@@ -140,6 +146,10 @@ class BalancingPolicySpec extends Spec {
       cluster.workUnitsPeggedToMe.add("two")
       workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
       workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
+      workUnits.foreach(el =>
+        cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
+          .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
+      )
 
       balancer.drainToCount(0)
 
@@ -157,6 +167,10 @@ class BalancingPolicySpec extends Spec {
       cluster.workUnitsPeggedToMe.add("two")
       workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
       workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
+      workUnits.foreach(el =>
+        cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
+          .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
+      )
 
       balancer.drainToCount(0, doShutdown = true)
 
@@ -174,6 +188,10 @@ class BalancingPolicySpec extends Spec {
       cluster.myWorkUnits.addAll(workUnits)
       workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
       workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
+      workUnits.foreach(el =>
+        cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
+          .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
+      )
 
       balancer.drainToCount(0, doShutdown = true)
 
@@ -190,6 +208,10 @@ class BalancingPolicySpec extends Spec {
       cluster.myWorkUnits.addAll(workUnits)
       workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
       workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
+      workUnits.foreach(el =>
+        cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
+          .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
+      )
 
       cluster.zk.get().create(any, any, any, any).returns("")
       balancer.drainToCount(3, useHandoff = true)

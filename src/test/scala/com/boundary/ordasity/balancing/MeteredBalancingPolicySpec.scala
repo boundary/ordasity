@@ -25,6 +25,8 @@ import java.util.concurrent.ScheduledFuture
 import com.yammer.metrics.scala.Meter
 import java.util.{LinkedList, HashMap, UUID}
 import com.simple.simplespec.Spec
+import org.apache.zookeeper.data.Stat
+import com.google.common.base.Charsets
 
 class MeteredBalancingPolicySpec extends Spec {
 
@@ -140,6 +142,10 @@ class MeteredBalancingPolicySpec extends Spec {
       map.foreach(el =>
         cluster.allWorkUnits.put(el._1, ""))
       cluster.myWorkUnits.addAll(map.keySet)
+      map.keys.foreach(el =>
+        cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
+          .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
+      )
       cluster.loadMap = new HashMap[String, Double]
       cluster.loadMap.putAll(map)
 
@@ -161,6 +167,10 @@ class MeteredBalancingPolicySpec extends Spec {
       map.foreach(el =>
         cluster.allWorkUnits.put(el._1, ""))
       cluster.myWorkUnits.addAll(map.keySet)
+      map.keys.foreach(el =>
+        cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
+          .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
+      )
       cluster.loadMap = new HashMap[String, Double]
       cluster.loadMap.putAll(map)
       balancer.myLoad().must(be(600.0))
@@ -182,6 +192,10 @@ class MeteredBalancingPolicySpec extends Spec {
 
       map.foreach(el =>
         cluster.allWorkUnits.put(el._1, ""))
+      map.keys.foreach(el =>
+        cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
+          .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
+      )
       cluster.myWorkUnits.addAll(map.keySet)
       cluster.loadMap = new HashMap[String, Double]
       cluster.loadMap.putAll(map)
