@@ -70,7 +70,7 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
       def run() {
         log.info("Shutting down %s following handoff to %s.",
           workUnit, cluster.getOrElse(cluster.handoffResults, workUnit, "(None)"))
-        cluster.shutdownWork(workUnit, doLog = false)
+        cluster.shutdownWork(workUnit, doLog = false, deleteZNode = true)
 
         if (cluster.myWorkUnits.size() == 0 && cluster.state.get() == NodeState.Draining)
           cluster.shutdown()

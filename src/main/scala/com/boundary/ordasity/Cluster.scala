@@ -433,7 +433,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
           !claimedForHandoff.contains(workUnit) && !znodeIsMe(claimPath)) {
         log.info("Discovered I'm serving a work unit that's now " +
           "claimed by %s according to ZooKeeper. Shutting down %s", workUnitMap.get(workUnit), workUnit)
-        shutdownWork(workUnit, true)
+        shutdownWork(workUnit, true, false)
       }
     }
   }
@@ -468,7 +468,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   /**
    * Shuts down a work unit by removing the claim in ZK and calling the listener.
    */
-  def shutdownWork(workUnit: String, doLog: Boolean = true) {
+  def shutdownWork(workUnit: String, doLog: Boolean = true, deleteZNode: Boolean = true) {
     if (doLog) log.info("Shutting down %s: %s...", config.workUnitName, workUnit)
     myWorkUnits.remove(workUnit)
     claimedForHandoff.remove(workUnit)
@@ -477,7 +477,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       listener.shutdownWork(workUnit)
     } finally {
       val path = "/%s/claimed-%s/%s".format(name, config.workUnitShortName, workUnit)
-      ZKUtils.deleteAtomic(zk, path, myNodeID)
+      if (deleteZNode) ZKUtils.delete(zk, path)
     }
   }
 
