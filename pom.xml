@@ -24,7 +24,7 @@
         <dependency>
             <groupId>com.boundary</groupId>
             <artifactId>overlock-scala_${scala.version}</artifactId>
-            <version>0.8.4</version>
+            <version>0.8.5</version>
         </dependency>
 
         <dependency>
@@ -58,7 +58,7 @@
         <dependency>
             <groupId>com.codahale</groupId>
             <artifactId>jerkson_${scala.version}</artifactId>
-            <version>0.5.0</version>
+            <version>0.5.0-p03</version>
         </dependency>
         
         <dependency>
@@ -119,10 +119,10 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>2.3.2</version>
+                <version>2.5.1</version>
                 <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
+                    <source>1.7</source>
+                    <target>1.7</target>
                 </configuration>
             </plugin>
 
@@ -145,7 +145,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
-                <version>2.1.2</version>
+                <version>2.2.1</version>
                 <executions>
                     <execution>
                         <id>attach-sources</id>
@@ -160,7 +160,7 @@
             <plugin>
               <groupId>org.codehaus.mojo</groupId>
               <artifactId>cobertura-maven-plugin</artifactId>
-              <version>2.5.1</version>
+              <version>2.6</version>
               <configuration>
  	              <formats>
  	                <format>xml</format>
@@ -179,23 +179,8 @@
 
     <repositories>
         <repository>
-            <id>central</id> 
-            <name>Maven repository</name> 
-            <url>http://repo1.maven.org/maven2</url> 
-        </repository>
-        <repository>
-            <id>scala-tools.org</id>
-            <name>Scala-tools Maven2 Repository</name>
-            <url>http://scala-tools.org/repo-releases</url>
-        </repository>
-        <repository>
             <id>twitter</id>
             <url>http://maven.twttr.com/</url>
-        </repository>
-        <repository>
-            <id>coda</id>
-            <name>Coda</name>
-            <url>http://repo.codahale.com/</url>
         </repository>
         <repository>
             <id>boundary-public</id>
@@ -203,14 +188,6 @@
             <url>http://maven.boundary.com/artifactory/repo</url>
         </repository>
     </repositories>
-
-    <pluginRepositories>
-        <pluginRepository>
-            <id>scala-tools.org</id>
-            <name>Scala-tools Maven2 Repository</name>
-            <url>http://scala-tools.org/repo-releases</url>
-        </pluginRepository>
-    </pluginRepositories>
 
     <distributionManagement>
         <repository>
