@@ -17,7 +17,6 @@
 package com.boundary.ordasity.balancing
 
 import collection.JavaConversions._
-import com.codahale.jerkson.Json
 import com.boundary.ordasity.{ZKUtils, NodeState, ClusterConfig, Cluster}
 import com.yammer.metrics.scala.Instrumented
 import java.util.{TimerTask, LinkedList}
@@ -67,14 +66,16 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
    */
   def isFairGame(workUnit: String) : Boolean = {
     val workUnitData = cluster.allWorkUnits.get(workUnit)
-    if (workUnitData == null || workUnitData.equals(""))
+    if (workUnitData == null || workUnitData.size() == 0)
       return true
 
     try {
-      val mapping = Json.parse[Map[String, String]](workUnitData)
-      val pegged = mapping.get(cluster.name)
-      if (pegged != null) log.debug("Pegged status for %s: %s.", workUnit, pegged)
-      (pegged.isEmpty || pegged.get.equals(cluster.myNodeID))
+      val pegged = workUnitData.get(cluster.name)
+      if (pegged == null) {
+        return true
+      }
+      log.debug("Pegged status for %s: %s.", workUnit, pegged)
+      pegged.asText().equals(cluster.myNodeID)
     } catch {
       case e: Exception =>
         log.error("Error parsing mapping for %s: %s", workUnit, workUnitData)
@@ -88,18 +89,20 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
    */
   def isPeggedToMe(workUnitId: String) : Boolean = {
     val zkWorkData = cluster.allWorkUnits.get(workUnitId)
-    if (zkWorkData == null || zkWorkData == "") {
+    if (zkWorkData == null || zkWorkData.size() == 0) {
       cluster.workUnitsPeggedToMe.remove(workUnitId)
       return false
     }
 
     try {
-      val mapping = Json.parse[Map[String, String]](zkWorkData)
-      val pegged = mapping.get(cluster.name)
-      val isPegged = (pegged.isDefined && (pegged.get.equals(cluster.myNodeID)))
+      val pegged = zkWorkData.get(cluster.name)
+      val isPegged = pegged != null && pegged.asText().equals(cluster.myNodeID)
 
-      if (isPegged) cluster.workUnitsPeggedToMe.add(workUnitId)
-      else cluster.workUnitsPeggedToMe.remove(workUnitId)
+      if (isPegged) {
+        cluster.workUnitsPeggedToMe.add(workUnitId)
+      } else {
+        cluster.workUnitsPeggedToMe.remove(workUnitId)
+      }
       
       isPegged
     } catch {

@@ -17,7 +17,6 @@
 package com.boundary.ordasity
 
 import org.junit.Test
-import com.codahale.jerkson.Json
 import com.simple.simplespec.Spec
 
 class DeserializersSpec extends Spec {
@@ -42,7 +41,7 @@ class DeserializersSpec extends Spec {
       val deser = new NodeInfoDeserializer
 
       val valid = NodeInfo("foo", 101L)
-      val bytes = Json.generate(valid).getBytes
+      val bytes = JsonUtils.OBJECT_MAPPER.writeValueAsBytes(valid)
 
       deser.apply(bytes).must(be(valid))
       deser.apply(null).must(be(NodeInfo(NodeState.Shutdown.toString, 0)))

@@ -25,6 +25,7 @@ import com.twitter.common.zookeeper.ZooKeeperClient
 import com.simple.simplespec.Spec
 import org.apache.zookeeper.data.Stat
 import com.google.common.base.Charsets
+import com.fasterxml.jackson.databind.node.ObjectNode
 
 class CountBalancingPolicySpec extends Spec {
 
@@ -42,7 +43,7 @@ class CountBalancingPolicySpec extends Spec {
       val balancer = new CountBalancingPolicy(cluster, config)
 
       List("one", "two", "three", "four", "five", "six", "seven").foreach(el =>
-        cluster.allWorkUnits.put(el, el))
+        cluster.allWorkUnits.put(el, JsonUtils.OBJECT_MAPPER.createObjectNode()))
 
       balancer.activeNodeSize().must(be(2))
       balancer.fairShare().must(be(4))
@@ -55,7 +56,7 @@ class CountBalancingPolicySpec extends Spec {
       val workUnits = List("one", "two", "three", "four", "five", "six", "seven")
 
       cluster.myWorkUnits.addAll(workUnits)
-      workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
+      workUnits.foreach(el => cluster.allWorkUnits.put(el, JsonUtils.OBJECT_MAPPER.createObjectNode()))
       workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
       workUnits.foreach(el =>
         cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
@@ -74,7 +75,7 @@ class CountBalancingPolicySpec extends Spec {
       val balancer = new CountBalancingPolicy(cluster, config)
       val workUnits = List("one", "two", "three", "four", "five", "six", "seven")
 
-      workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
+      workUnits.foreach(el => cluster.allWorkUnits.put(el, JsonUtils.OBJECT_MAPPER.createObjectNode()))
       cluster.myWorkUnits.add("foo")
       cluster.workUnitMap.put("foo", "testNode")
       
@@ -89,13 +90,13 @@ class CountBalancingPolicySpec extends Spec {
       val cluster = makeCluster()
       val balancer = new CountBalancingPolicy(cluster, config)
       val workUnits = List("one", "two", "three", "four", "five", "six", "seven")
-      workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
+      workUnits.foreach(el => cluster.allWorkUnits.put(el, JsonUtils.OBJECT_MAPPER.createObjectNode()))
       balancer.getMaxToClaim(balancer.activeNodeSize()).must(be(4))
 
       cluster.allWorkUnits.clear()
       balancer.getMaxToClaim(balancer.activeNodeSize()).must(be(0))
 
-      cluster.allWorkUnits.put("one", "")
+      cluster.allWorkUnits.put("one", JsonUtils.OBJECT_MAPPER.createObjectNode())
       balancer.getMaxToClaim(balancer.activeNodeSize()).must(be(1))
     }
 
@@ -108,7 +109,7 @@ class CountBalancingPolicySpec extends Spec {
       cluster.zk.get().create(any, any, any, any).returns("")
 
       val workUnits = List("one", "two", "three", "four", "five", "six", "seven")
-      workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
+      workUnits.foreach(el => cluster.allWorkUnits.put(el, JsonUtils.OBJECT_MAPPER.createObjectNode()))
 
       cluster.myWorkUnits.size().must(be(0))
       balancer.claimWork()
@@ -131,9 +132,13 @@ class CountBalancingPolicySpec extends Spec {
       cluster.zk.get().create(any, any, any, any).returns("")
 
       val workUnits = List("one", "two", "three", "four", "five", "six", "seven")
-      workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
-      cluster.allWorkUnits.put("peggedToMe", """{"%s": "%s"}""".format(cluster.name, cluster.myNodeID))
-      cluster.allWorkUnits.put("peggedToOther", """{"%s": "%s"}""".format(cluster.name, "otherNode"))
+      workUnits.foreach(el => cluster.allWorkUnits.put(el, JsonUtils.OBJECT_MAPPER.createObjectNode()))
+      val peggedToMe = JsonUtils.OBJECT_MAPPER.createObjectNode()
+      peggedToMe.put(cluster.name, cluster.myNodeID)
+      cluster.allWorkUnits.put("peggedToMe", peggedToMe)
+      val peggedToOther = JsonUtils.OBJECT_MAPPER.createObjectNode()
+      peggedToOther.put(cluster.name, "otherNode")
+      cluster.allWorkUnits.put("peggedToOther", peggedToOther)
 
       cluster.myWorkUnits.size().must(be(0))
       balancer.getUnclaimed().size.must(be(9))
@@ -161,7 +166,7 @@ class CountBalancingPolicySpec extends Spec {
     cluster.zk = mockZKClient
 
     cluster.nodes = new HashMap[String, NodeInfo]
-    cluster.allWorkUnits = new HashMap[String, String]
+    cluster.allWorkUnits = new HashMap[String, ObjectNode]
     cluster.workUnitMap = new HashMap[String, String]
     cluster.handoffRequests = new HashMap[String, String]
     cluster.handoffResults = new HashMap[String, String]

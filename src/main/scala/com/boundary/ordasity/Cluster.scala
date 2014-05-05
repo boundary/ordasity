@@ -16,7 +16,6 @@
 
 package com.boundary.ordasity
 
-import com.codahale.jerkson.Json._
 import com.yammer.metrics.scala.{Meter, Instrumented}
 import java.lang.management.ManagementFactory
 import javax.management.ObjectName
@@ -38,6 +37,7 @@ import org.apache.zookeeper.Watcher.Event.KeeperState
 import java.util.concurrent.{TimeoutException, TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
 import overlock.threadpool.NamedThreadFactory
 import com.boundary.logula.Logging
+import com.fasterxml.jackson.databind.node.ObjectNode
 
 trait ClusterMBean {
   def join() : String
@@ -59,7 +59,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   // Cluster, node, and work unit state
   var nodes : Map[String, NodeInfo] = null
   val myWorkUnits = new NonBlockingHashSet[String]
-  var allWorkUnits : Map[String, String] = null
+  var allWorkUnits : Map[String, ObjectNode] = null
   var workUnitMap : Map[String, String] = null
   var handoffRequests : Map[String, String] = null
   var handoffResults : Map[String, String] = null
@@ -341,7 +341,8 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   def joinCluster() {
     while (true) {
       val myInfo = new NodeInfo(NodeState.Fresh.toString, zk.get().getSessionId)
-      if (ZKUtils.createEphemeral(zk, "/" + name + "/nodes/" + myNodeID, generate(myInfo))) {
+      val encoded = JsonUtils.OBJECT_MAPPER.writeValueAsString(myInfo)
+      if (ZKUtils.createEphemeral(zk, "/" + name + "/nodes/" + myNodeID, encoded)) {
         return
       } else {
         log.warn("Unable to register with Zookeeper on launch. " +
@@ -361,14 +362,14 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   def registerWatchers() {
 
     val nodesChangedListener = new ClusterNodesChangedListener(this)
-    val verifyIntegrityListener = new VerifyIntegrityListener(this, config)
+    val verifyIntegrityListener = new VerifyIntegrityListener[String](this, config)
     val stringDeser = new StringDeserializer()
 
     nodes = ZKMap.create(zk, "/%s/nodes".format(name),
       new NodeInfoDeserializer(), nodesChangedListener)
 
     allWorkUnits = ZKMap.create(zk, "/%s".format(config.workUnitName),
-      stringDeser, verifyIntegrityListener)
+      new ObjectNodeDeserializer, new VerifyIntegrityListener[ObjectNode](this, config))
 
     workUnitMap = ZKMap.create(zk, "/%s/claimed-%s".format(name, config.workUnitShortName),
       stringDeser, verifyIntegrityListener)
@@ -510,7 +511,8 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   */
   def setState(to: NodeState.Value) {
     val myInfo = new NodeInfo(to.toString, zk.get().getSessionId)
-    ZKUtils.set(zk, "/" + name + "/nodes/" + myNodeID, generate(myInfo))
+    val encoded = JsonUtils.OBJECT_MAPPER.writeValueAsString(myInfo)
+    ZKUtils.set(zk, "/" + name + "/nodes/" + myNodeID, encoded)
     state.set(to)
   }
 

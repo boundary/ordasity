@@ -50,7 +50,7 @@ class VerifyIntegrityListenerSpec extends Spec {
         true
       })
 
-      val listener = new VerifyIntegrityListener(cluster, config)
+      val listener = new VerifyIntegrityListener[String](cluster, config)
       listener.nodeChanged("foo", "bar")
 
       verify.one(cluster).claimWork()
@@ -82,7 +82,7 @@ class VerifyIntegrityListenerSpec extends Spec {
       cluster.watchesRegistered.returns(new AtomicBoolean(false))
       cluster.initialized.returns(new AtomicBoolean(false))
 
-      val listener = new VerifyIntegrityListener(cluster, config)
+      val listener = new VerifyIntegrityListener[String](cluster, config)
       listener.nodeChanged("foo", "bar")
 
       verify.exactly(0)(cluster).claimWork()
@@ -94,7 +94,7 @@ class VerifyIntegrityListenerSpec extends Spec {
       cluster.watchesRegistered.returns(new AtomicBoolean(false))
       cluster.initialized.returns(new AtomicBoolean(false))
 
-      val listener = new VerifyIntegrityListener(cluster, config)
+      val listener = new VerifyIntegrityListener[String](cluster, config)
       listener.nodeRemoved("foo")
 
       verify.exactly(0)(cluster).claimWork()

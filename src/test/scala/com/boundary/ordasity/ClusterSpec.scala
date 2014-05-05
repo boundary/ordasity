@@ -20,7 +20,6 @@ import collection.JavaConversions._
 import balancing.{CountBalancingPolicy, BalancingPolicy}
 import org.junit.Test
 import java.util.{UUID, HashMap}
-import com.codahale.jerkson.Json
 import org.apache.zookeeper.data.Stat
 import org.apache.zookeeper.ZooDefs.Ids
 import com.twitter.common.zookeeper.{ZooKeeperMap, ZooKeeperClient}
@@ -29,7 +28,7 @@ import com.simple.simplespec.Spec
 import com.google.common.base.Charsets
 import org.mockito.invocation.InvocationOnMock
 import org.apache.zookeeper.KeeperException.NoNodeException
-import java.util.concurrent.{TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
+import com.fasterxml.jackson.databind.node.ObjectNode
 
 class ClusterSpec extends Spec {
 
@@ -51,7 +50,7 @@ class ClusterSpec extends Spec {
       val mockZKClient = mock[ZooKeeper]
       mockZKClient.getSessionId.returns(101L)
       mockZKClient.getData(equalTo("/%s/nodes/testNode".format(id)), any[Boolean], any[Stat]).
-        returns(Json.generate(nodeInfo).getBytes)
+        returns(JsonUtils.OBJECT_MAPPER.writeValueAsBytes(nodeInfo))
 
       val mockZK = mock[ZooKeeperClient]
       mockZK.get().returns(mockZKClient)
@@ -65,7 +64,7 @@ class ClusterSpec extends Spec {
 
     @Test def `setState` {
       val nodeInfo = NodeInfo(NodeState.Draining.toString, 101L)
-      val serialized = Json.generate(nodeInfo).getBytes
+      val serialized = JsonUtils.OBJECT_MAPPER.writeValueAsBytes(nodeInfo)
 
       val mockZKClient = mock[ZooKeeper]
       mockZKClient.setData("/%s/nodes/%s".format(id, "testNode"), serialized, -1).returns(mock[Stat])
@@ -117,7 +116,7 @@ class ClusterSpec extends Spec {
 
       val (mockZK, mockZKClient) = getMockZK()
       cluster.zk = mockZKClient
-      cluster.allWorkUnits = new HashMap[String, String]
+      cluster.allWorkUnits = new HashMap[String, ObjectNode]
 
       cluster.myWorkUnits.add(work)
       cluster.myWorkUnits.contains(work).must(be(true))
@@ -184,7 +183,7 @@ class ClusterSpec extends Spec {
       cluster.claimedForHandoff.add("bar")
       cluster.workUnitsPeggedToMe.add("baz")
       cluster.state.set(NodeState.Draining)
-      cluster.allWorkUnits = new HashMap[String, String]
+      cluster.allWorkUnits = new HashMap[String, ObjectNode]
 
       mockZK.getData(equalTo(cluster.workUnitClaimPath("foo")), any[Boolean], any[Stat])
         .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
@@ -229,7 +228,7 @@ class ClusterSpec extends Spec {
       val pol = new CountBalancingPolicy(cluster, config)
       cluster.balancingPolicy = pol
       cluster.myWorkUnits.clear()
-      cluster.allWorkUnits = new HashMap[String, String]
+      cluster.allWorkUnits = new HashMap[String, ObjectNode]
 
       val (_, mockZKClient) = getMockZK()
       cluster.zk = mockZKClient
@@ -254,7 +253,7 @@ class ClusterSpec extends Spec {
       val pol = mock[BalancingPolicy]
       cluster.balancingPolicy = pol
       cluster.myWorkUnits.add("foo")
-      cluster.allWorkUnits = new HashMap[String, String]
+      cluster.allWorkUnits = new HashMap[String, ObjectNode]
 
       mockZK.getData(equalTo(cluster.workUnitClaimPath("foo")), any[Boolean], any[Stat])
         .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
@@ -274,7 +273,7 @@ class ClusterSpec extends Spec {
       mockZK.getSessionId.returns(101L)
       cluster.zk = mockZKClient
       val path = "/%s/nodes/%s".format(id, cluster.myNodeID)
-      val nodeInfo = Json.generate(NodeInfo(NodeState.Fresh.toString, 101L)).getBytes
+      val nodeInfo = JsonUtils.OBJECT_MAPPER.writeValueAsBytes(NodeInfo(NodeState.Fresh.toString, 101L))
 
       cluster.joinCluster()
       verify.one(mockZK).create(path, nodeInfo, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL)
@@ -290,7 +289,7 @@ class ClusterSpec extends Spec {
       cluster.registerWatchers()
 
       cluster.nodes.isInstanceOf[ZooKeeperMap[String]].must(be(true))
-      cluster.allWorkUnits.isInstanceOf[ZooKeeperMap[String]].must(be(true))
+      cluster.allWorkUnits.isInstanceOf[ZooKeeperMap[ObjectNode]].must(be(true))
       cluster.workUnitMap.isInstanceOf[ZooKeeperMap[String]].must(be(true))
 
       // Not using soft handoff (TODO: assert ZKMap w/soft handoff on)
@@ -303,7 +302,7 @@ class ClusterSpec extends Spec {
     @Test def `verify integrity` {
       val (mockZK, mockZKClient) = getMockZK()
       cluster.zk = mockZKClient
-      cluster.allWorkUnits = new HashMap[String, String]
+      cluster.allWorkUnits = new HashMap[String, ObjectNode]
       cluster.workUnitMap = new HashMap[String, String]
 
       val nonexistent = collection.mutable.Set("shut", "me", "down")
@@ -325,11 +324,18 @@ class ClusterSpec extends Spec {
         "foo" -> "testNode", "bar" -> "bar", "baz" -> "baz",
         "dong" -> "testNode", "taco" -> "bong")
 
-      val peg = Json.generate(Map(id -> "NOTTESTNODE"))
+      val peg = JsonUtils.OBJECT_MAPPER.createObjectNode()
+      peg.put(id, "NOTTESTNODE")
       cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath("dong")), any[Boolean], any[Stat])
         .returns("NOTTESTNODE".getBytes(Charsets.UTF_8))
-      val allUnits = collection.mutable.Map(
-        "foo" -> "", "bar" -> "", "baz" -> "", "dong" -> peg, "taco" -> "")
+      val allUnits = collection.mutable.Map[String, ObjectNode]()
+      workUnitMap.keySet.foreach(workUnit => {
+        if ("dong".equals(workUnit)) {
+          allUnits.put(workUnit, peg)
+        } else {
+          allUnits.put(workUnit, JsonUtils.OBJECT_MAPPER.createObjectNode())
+        }
+      })
 
       cluster.allWorkUnits.putAll(allUnits)
       cluster.workUnitMap.putAll(workUnitMap)
@@ -369,7 +375,7 @@ class ClusterSpec extends Spec {
       val nodeInfo = NodeInfo(NodeState.Started.toString, 101L)
       mockZK.getSessionId.returns(101L)
       mockZK.getData(equalTo("/%s/nodes/testNode".format(id)), any[Boolean], any[Stat]).
-        returns(Json.generate(nodeInfo).getBytes)
+        returns(JsonUtils.OBJECT_MAPPER.writeValueAsBytes(nodeInfo))
 
       cluster.onConnect()
 
@@ -383,13 +389,13 @@ class ClusterSpec extends Spec {
       val (mockZK, mockZKClient) = getMockZK()
       cluster.zk = mockZKClient
       cluster.state.set(NodeState.Started)
-      cluster.allWorkUnits = new HashMap[String, String]
+      cluster.allWorkUnits = new HashMap[String, ObjectNode]
 
       // Ensure that previousZKSessionStillActive() returns false
       val nodeInfo = NodeInfo(NodeState.Started.toString, 102L)
       mockZK.getSessionId.returns(101L)
       mockZK.getData(equalTo("/%s/nodes/testNode".format(id)), any[Boolean], any[Stat]).
-        returns(Json.generate(nodeInfo).getBytes)
+        returns(JsonUtils.OBJECT_MAPPER.writeValueAsBytes(nodeInfo))
 
       // Pretend that the paths exist for the ZooKeeperMaps we're creating
       mockZK.exists(any[String], any[Watcher]).returns(mock[Stat])
