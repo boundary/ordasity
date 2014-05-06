@@ -34,10 +34,12 @@ import listeners._
 import balancing.{CountBalancingPolicy, MeteredBalancingPolicy}
 import org.apache.zookeeper.{WatchedEvent, Watcher}
 import org.apache.zookeeper.Watcher.Event.KeeperState
-import java.util.concurrent.{TimeoutException, TimeUnit, ScheduledFuture, ScheduledThreadPoolExecutor}
+import java.util.concurrent._
 import overlock.threadpool.NamedThreadFactory
 import com.boundary.logula.Logging
 import com.fasterxml.jackson.databind.node.ObjectNode
+import scala.Some
+import com.boundary.ordasity.NodeInfo
 
 trait ClusterMBean {
   def join() : String
@@ -50,6 +52,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
   var myNodeID = config.nodeId
   val watchesRegistered = new AtomicBoolean(false)
   val initialized = new AtomicBoolean(false)
+  val initializedLatch = new CountDownLatch(1)
   val connected = new AtomicBoolean(false)
 
   // Register Ordasity with JMX for management / instrumentation.
@@ -285,6 +288,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     if (watchesRegistered.compareAndSet(false, true))
       registerWatchers()
     initialized.set(true)
+    initializedLatch.countDown()
     
     setState(NodeState.Started)
     claimer.requestClaim()

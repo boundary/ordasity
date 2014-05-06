@@ -20,7 +20,6 @@ import collection.JavaConversions._
 import com.twitter.common.zookeeper.ZooKeeperMap
 import com.boundary.ordasity.{ClusterConfig, Cluster}
 import com.boundary.logula.Logging
-import com.fasterxml.jackson.databind.node.ObjectNode
 
 /**
  * As work units distributed about the cluster change, we must verify the
