@@ -26,10 +26,10 @@ import com.boundary.logula.Logging
  * integrity of this node's mappings to ensure it matches reality, and attempt
  * to claim work if the topology of nodes and work units in the cluster has changed.
  */
-class VerifyIntegrityListener(cluster: Cluster, config: ClusterConfig)
-    extends ZooKeeperMap.Listener[String] with Logging {
+class VerifyIntegrityListener[T](cluster: Cluster, config: ClusterConfig)
+    extends ZooKeeperMap.Listener[T] with Logging {
 
-  def nodeChanged(nodeName: String, data: String) {
+  def nodeChanged(nodeName: String, data: T) {
     if (!cluster.initialized.get()) return
 
     log.debug(config.workUnitName.capitalize +

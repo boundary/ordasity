@@ -27,6 +27,7 @@ import org.apache.zookeeper.KeeperException.NodeExistsException
 import com.simple.simplespec.Spec
 import org.apache.zookeeper.data.Stat
 import com.google.common.base.Charsets
+import com.fasterxml.jackson.databind.node.ObjectNode
 
 
 class DummyBalancingPolicy(cluster: Cluster, config: ClusterConfig)
@@ -63,13 +64,15 @@ class BalancingPolicySpec extends Spec {
       val cluster = makeCluster()
       val balancer = new DummyBalancingPolicy(cluster, config)
 
-      cluster.allWorkUnits.put("vanilla", "")
-      cluster.allWorkUnits.put("bean", "c'eci nes pas json")
-      cluster.allWorkUnits.put("peggedToMe", """{"%s": "%s"}""".format(cluster.name, cluster.myNodeID))
-      cluster.allWorkUnits.put("peggedToOther", """{"%s": "%s"}""".format(cluster.name, "otherNode"))
+      cluster.allWorkUnits.put("vanilla", JsonUtils.OBJECT_MAPPER.createObjectNode())
+      val peggedToMe = JsonUtils.OBJECT_MAPPER.createObjectNode()
+      peggedToMe.put(cluster.name, cluster.myNodeID)
+      cluster.allWorkUnits.put("peggedToMe", peggedToMe)
+      val peggedToOther = JsonUtils.OBJECT_MAPPER.createObjectNode()
+      peggedToOther.put(cluster.name, "otherNode")
+      cluster.allWorkUnits.put("peggedToOther", peggedToOther)
 
       balancer.isFairGame("vanilla").must(be(true))
-      balancer.isFairGame("bean").must(be(true))
       balancer.isFairGame("peggedToMe").must(be(true))
       balancer.isFairGame("peggedToOther").must(be(false))
     }
@@ -78,10 +81,13 @@ class BalancingPolicySpec extends Spec {
       val cluster = makeCluster()
       val balancer = new DummyBalancingPolicy(cluster, config)
 
-      cluster.allWorkUnits.put("vanilla", "")
-      cluster.allWorkUnits.put("bean", "c'eci nes pas json")
-      cluster.allWorkUnits.put("peggedToMe", """{"%s": "%s"}""".format(cluster.name, cluster.myNodeID))
-      cluster.allWorkUnits.put("peggedToOther", """{"%s": "%s"}""".format(cluster.name, "otherNode"))
+      cluster.allWorkUnits.put("vanilla", JsonUtils.OBJECT_MAPPER.createObjectNode())
+      val peggedToMe = JsonUtils.OBJECT_MAPPER.createObjectNode()
+      peggedToMe.put(cluster.name, cluster.myNodeID)
+      cluster.allWorkUnits.put("peggedToMe", peggedToMe)
+      val peggedToOther = JsonUtils.OBJECT_MAPPER.createObjectNode()
+      peggedToOther.put(cluster.name, "otherNode")
+      cluster.allWorkUnits.put("peggedToOther", peggedToOther)
 
       balancer.isPeggedToMe("vanilla").must(be(false))
       balancer.isPeggedToMe("bean").must(be(false))
@@ -107,7 +113,9 @@ class BalancingPolicySpec extends Spec {
     @Test def `claim work pegged to me` {
       val cluster = makeCluster()
       val balancer = new DummyBalancingPolicy(cluster, config)
-      cluster.allWorkUnits.put("peggedToMe", """{"%s": "%s"}""".format(cluster.name, cluster.myNodeID))
+      val peggedToMe = JsonUtils.OBJECT_MAPPER.createObjectNode()
+      peggedToMe.put(cluster.name, cluster.myNodeID)
+      cluster.allWorkUnits.put("peggedToMe", peggedToMe)
 
       Mockito.when(cluster.zk.get().create(any, any, any, any)).
         thenThrow(new NodeExistsException).
@@ -123,7 +131,7 @@ class BalancingPolicySpec extends Spec {
 
       val workUnits = List("one", "two", "three", "four", "five", "six", "seven")
       cluster.myWorkUnits.addAll(workUnits)
-      workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
+      workUnits.foreach(el => cluster.allWorkUnits.put(el, JsonUtils.OBJECT_MAPPER.createObjectNode()))
       workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
       workUnits.foreach(el =>
         cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
@@ -144,7 +152,7 @@ class BalancingPolicySpec extends Spec {
       val workUnits = List("one", "two", "three", "four", "five", "six", "seven")
       cluster.myWorkUnits.addAll(workUnits)
       cluster.workUnitsPeggedToMe.add("two")
-      workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
+      workUnits.foreach(el => cluster.allWorkUnits.put(el, JsonUtils.OBJECT_MAPPER.createObjectNode()))
       workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
       workUnits.foreach(el =>
         cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
@@ -165,7 +173,7 @@ class BalancingPolicySpec extends Spec {
       val workUnits = List("one", "two", "three", "four", "five", "six", "seven")
       cluster.myWorkUnits.addAll(workUnits)
       cluster.workUnitsPeggedToMe.add("two")
-      workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
+      workUnits.foreach(el => cluster.allWorkUnits.put(el, JsonUtils.OBJECT_MAPPER.createObjectNode()))
       workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
       workUnits.foreach(el =>
         cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
@@ -186,7 +194,7 @@ class BalancingPolicySpec extends Spec {
 
       val workUnits = List("one", "two", "three", "four", "five", "six", "seven")
       cluster.myWorkUnits.addAll(workUnits)
-      workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
+      workUnits.foreach(el => cluster.allWorkUnits.put(el, JsonUtils.OBJECT_MAPPER.createObjectNode()))
       workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
       workUnits.foreach(el =>
         cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
@@ -206,7 +214,7 @@ class BalancingPolicySpec extends Spec {
 
       val workUnits = List("one", "two", "three", "four", "five", "six", "seven")
       cluster.myWorkUnits.addAll(workUnits)
-      workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
+      workUnits.foreach(el => cluster.allWorkUnits.put(el, JsonUtils.OBJECT_MAPPER.createObjectNode()))
       workUnits.foreach(el => cluster.workUnitMap.put(el, "testNode"))
       workUnits.foreach(el =>
         cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
@@ -225,7 +233,7 @@ class BalancingPolicySpec extends Spec {
       val balancer = new CountBalancingPolicy(cluster, config)
 
       val workUnits = List("one", "two", "three", "four", "five", "six", "seven", "eight")
-      workUnits.foreach(el => cluster.allWorkUnits.put(el, ""))
+      workUnits.foreach(el => cluster.allWorkUnits.put(el, JsonUtils.OBJECT_MAPPER.createObjectNode()))
       cluster.myWorkUnits.add("eight")
 
       List("one", "two").foreach(el => cluster.workUnitMap.put(el, ""))
@@ -246,7 +254,7 @@ class BalancingPolicySpec extends Spec {
 
     cluster.state.set(NodeState.Started)
     cluster.nodes = new HashMap[String, NodeInfo]
-    cluster.allWorkUnits = new HashMap[String, String]
+    cluster.allWorkUnits = new HashMap[String, ObjectNode]
     cluster.workUnitMap = new HashMap[String, String]
     cluster.handoffRequests = new HashMap[String, String]
     cluster.handoffResults = new HashMap[String, String]

@@ -16,10 +16,12 @@
 
 package com.boundary.ordasity
 
-import java.nio.charset.Charset
-import com.codahale.jerkson.Json
 import com.google.common.base.Function
 import com.boundary.logula.Logging
+import com.fasterxml.jackson.databind.node.ObjectNode
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import org.slf4j.LoggerFactory
 
 /**
  * Case class representing the state of a node and its ZooKeeper connection
@@ -56,8 +58,7 @@ object NodeState extends Enumeration {
 class NodeInfoDeserializer extends Function[Array[Byte], NodeInfo] with Logging {
   def apply(bytes: Array[Byte]) : NodeInfo = {
     try {
-      val data = new String(bytes, Charset.forName("UTF-8"))
-      Json.parse[NodeInfo](data)
+      JsonUtils.OBJECT_MAPPER.readValue(bytes, classOf[NodeInfo])
     } catch {
       case e: Exception =>
         val data = if (bytes == null) "" else new String(bytes)
@@ -79,6 +80,27 @@ class StringDeserializer extends Function[Array[Byte], String] {
     } catch {
       case e: Exception => ""
     }
+  }
+}
+
+object JsonUtils {
+  val OBJECT_MAPPER = new ObjectMapper()
+  OBJECT_MAPPER.registerModule(new DefaultScalaModule)
+}
+
+class ObjectNodeDeserializer extends Function[Array[Byte], ObjectNode] {
+  private[this] val LOGGER = LoggerFactory.getLogger(getClass)
+
+  override def apply(input: Array[Byte]): ObjectNode = {
+    if (input != null && input.length > 0) {
+      try {
+        return JsonUtils.OBJECT_MAPPER.readTree(input).asInstanceOf[ObjectNode]
+      } catch {
+        case e: Exception =>
+          LOGGER.error("Failed to de-serialize ZNode", e)
+      }
+    }
+    JsonUtils.OBJECT_MAPPER.createObjectNode()
   }
 }
 

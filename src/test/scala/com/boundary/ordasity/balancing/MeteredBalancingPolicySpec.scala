@@ -27,6 +27,7 @@ import java.util.{LinkedList, HashMap, UUID}
 import com.simple.simplespec.Spec
 import org.apache.zookeeper.data.Stat
 import com.google.common.base.Charsets
+import com.fasterxml.jackson.databind.node.ObjectNode
 
 class MeteredBalancingPolicySpec extends Spec {
 
@@ -118,7 +119,7 @@ class MeteredBalancingPolicySpec extends Spec {
       cluster.balancingPolicy = balancer
 
       Map("foo" -> 100.0, "bar" -> 200.0, "baz" -> 300.0).foreach(el =>
-        cluster.allWorkUnits.put(el._1, ""))
+        cluster.allWorkUnits.put(el._1, JsonUtils.OBJECT_MAPPER.createObjectNode()))
 
       cluster.loadMap = new HashMap[String, Double]
       cluster.loadMap.putAll(
@@ -140,7 +141,7 @@ class MeteredBalancingPolicySpec extends Spec {
       val map = Map("foo" -> 100.0, "bar" -> 200.0, "baz" -> 300.0)
 
       map.foreach(el =>
-        cluster.allWorkUnits.put(el._1, ""))
+        cluster.allWorkUnits.put(el._1, JsonUtils.OBJECT_MAPPER.createObjectNode()))
       cluster.myWorkUnits.addAll(map.keySet)
       map.keys.foreach(el =>
         cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
@@ -165,7 +166,7 @@ class MeteredBalancingPolicySpec extends Spec {
       val map = Map("foo" -> 100.0, "bar" -> 200.0, "baz" -> 300.0)
 
       map.foreach(el =>
-        cluster.allWorkUnits.put(el._1, ""))
+        cluster.allWorkUnits.put(el._1, JsonUtils.OBJECT_MAPPER.createObjectNode()))
       cluster.myWorkUnits.addAll(map.keySet)
       map.keys.foreach(el =>
         cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
@@ -191,7 +192,7 @@ class MeteredBalancingPolicySpec extends Spec {
       val map = Map("foo" -> 100.0, "bar" -> 200.0, "baz" -> 300.0)
 
       map.foreach(el =>
-        cluster.allWorkUnits.put(el._1, ""))
+        cluster.allWorkUnits.put(el._1, JsonUtils.OBJECT_MAPPER.createObjectNode()))
       map.keys.foreach(el =>
         cluster.zk.get().getData(equalTo(cluster.workUnitClaimPath(el)), any[Boolean], any[Stat])
           .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
@@ -228,7 +229,7 @@ class MeteredBalancingPolicySpec extends Spec {
     cluster.zk = mockZKClient
 
     cluster.nodes = new HashMap[String, NodeInfo]
-    cluster.allWorkUnits = new HashMap[String, String]
+    cluster.allWorkUnits = new HashMap[String, ObjectNode]
     cluster.workUnitMap = new HashMap[String, String]
     cluster.handoffRequests = new HashMap[String, String]
     cluster.handoffResults = new HashMap[String, String]

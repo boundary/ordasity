@@ -19,9 +19,8 @@ package com.boundary.ordasity.balancing
 import collection.JavaConversions._
 import overlock.atomicmap.AtomicMap
 import com.boundary.ordasity._
-import com.codahale.jerkson.Json
 import java.util.concurrent.{TimeUnit, ScheduledFuture}
-import com.yammer.metrics.scala.{Meter, Instrumented}
+import com.yammer.metrics.scala.Meter
 import java.util.{TimerTask, LinkedList}
 import org.apache.zookeeper.CreateMode
 
@@ -124,7 +123,8 @@ class MeteredBalancingPolicy(cluster: Cluster, config: ClusterConfig)
 
           val myInfo = new NodeInfo(cluster.getState.toString, cluster.zk.get().getSessionId)
           val nodeLoadPath = "/%s/nodes/%s".format(cluster.name, cluster.myNodeID)
-          ZKUtils.setOrCreate(cluster.zk, nodeLoadPath, Json.generate(myInfo), CreateMode.EPHEMERAL)
+          val myInfoEncoded = JsonUtils.OBJECT_MAPPER.writeValueAsString(myInfo)
+          ZKUtils.setOrCreate(cluster.zk, nodeLoadPath, myInfoEncoded, CreateMode.EPHEMERAL)
 
           log.info("My load: %s", myLoad())          
         } catch {
