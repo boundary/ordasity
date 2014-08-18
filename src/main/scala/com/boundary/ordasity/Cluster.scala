@@ -179,8 +179,8 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
           zk.get(Amount.of(1L, Time.SECONDS))
           return
         } catch {
-          case e: TimeoutException => log.warn("Timed out reconnecting to ZooKeeper.")
-          case e: Exception => log.error("Error reconnecting to ZooKeeper", e)
+          case e: TimeoutException => log.warn(e, "Timed out reconnecting to ZooKeeper.")
+          case e: Exception => log.error(e, "Error reconnecting to ZooKeeper")
         }
       }
 
@@ -272,10 +272,9 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       if (previousZKSessionStillActive()) {
         log.info("ZooKeeper session re-established before timeout.")
         return
-      } else {
-        log.warn("Rejoined after session timeout. Forcing shutdown and clean startup.")
-        ensureCleanStartup()
       }
+      log.warn("Rejoined after session timeout. Forcing shutdown and clean startup.")
+      ensureCleanStartup()
     }
 
     log.info("Connected to Zookeeper (ID: %s).", myNodeID)
@@ -348,11 +347,10 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       val encoded = JsonUtils.OBJECT_MAPPER.writeValueAsString(myInfo)
       if (ZKUtils.createEphemeral(zk, "/" + name + "/nodes/" + myNodeID, encoded)) {
         return
-      } else {
-        log.warn("Unable to register with Zookeeper on launch. " +
-          "Is %s already running on this host? Retrying in 1 second...", name)
-        Thread.sleep(1000)
       }
+      log.warn("Unable to register with Zookeeper on launch. " +
+        "Is %s already running on this host? Retrying in 1 second...", name)
+      Thread.sleep(1000)
     }
   }
 

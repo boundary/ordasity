@@ -64,7 +64,7 @@ class NodeInfoDeserializer extends Function[Array[Byte], NodeInfo] with Logging 
         val data = if (bytes == null) "" else new String(bytes)
         val parsedState = NodeState.valueOf(data).getOrElse(NodeState.Shutdown)
         val info = new NodeInfo(parsedState.toString, 0)
-        log.warn("Saw node data in non-JSON format. Interpreting %s as: %s", data, info)
+        log.warn(e, "Saw node data in non-JSON format. Interpreting %s as: %s", data, info)
         info
     }
   }

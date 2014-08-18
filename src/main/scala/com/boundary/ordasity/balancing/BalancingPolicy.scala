@@ -78,7 +78,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
       pegged.asText().equals(cluster.myNodeID)
     } catch {
       case e: Exception =>
-        log.error("Error parsing mapping for %s: %s", workUnit, workUnitData)
+        log.error(e, "Error parsing mapping for %s: %s", workUnit, workUnitData)
         true
     }
   }
@@ -107,7 +107,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
       isPegged
     } catch {
       case e: Exception =>
-        log.error("Error parsing mapping for %s: %s", workUnitId, zkWorkData)
+        log.error(e, "Error parsing mapping for %s: %s", workUnitId, zkWorkData)
         false
     }
   }
@@ -149,10 +149,9 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
       if (ZKUtils.createEphemeral(cluster.zk, path, cluster.myNodeID) || cluster.znodeIsMe(path)) {
         cluster.startWork(workUnit)
         return
-      } else {
-        log.warn("Attempting to establish ownership of %s. Retrying in one second...", workUnit)
-        Thread.sleep(1000)
       }
+      log.warn("Attempting to establish ownership of %s. Retrying in one second...", workUnit)
+      Thread.sleep(1000)
     }
   }
 
