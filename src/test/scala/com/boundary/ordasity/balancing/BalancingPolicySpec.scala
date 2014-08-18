@@ -16,6 +16,8 @@
 
 package com.boundary.ordasity.balancing
 
+import java.util.concurrent.{TimeUnit, CountDownLatch}
+
 import org.junit.Test
 import com.boundary.ordasity._
 import java.util.{HashMap, UUID}
@@ -138,9 +140,8 @@ class BalancingPolicySpec extends Spec {
           .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
       )
 
-      balancer.drainToCount(0)
+      drainAndWait(balancer, 0)
 
-      Thread.sleep(1100)
       cluster.myWorkUnits.size().must(be(0))
       cluster.state.get().must(be(NodeState.Started))
     }
@@ -159,9 +160,8 @@ class BalancingPolicySpec extends Spec {
           .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
       )
 
-      balancer.drainToCount(0)
+      drainAndWait(balancer, 0)
 
-      Thread.sleep(1100)
       cluster.myWorkUnits.size().must(be(1))
       cluster.state.get().must(be(NodeState.Started))
     }
@@ -180,9 +180,8 @@ class BalancingPolicySpec extends Spec {
           .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
       )
 
-      balancer.drainToCount(0, doShutdown = true)
+      drainAndWait(balancer, 0, doShutdown = true)
 
-      Thread.sleep(1100)
       cluster.myWorkUnits.size().must(be(0))
       cluster.state.get().must(be(NodeState.Shutdown))
     }
@@ -201,9 +200,8 @@ class BalancingPolicySpec extends Spec {
           .returns(cluster.myNodeID.getBytes(Charsets.UTF_8))
       )
 
-      balancer.drainToCount(0, doShutdown = true)
+      drainAndWait(balancer, 0, doShutdown = true)
 
-      Thread.sleep(1100)
       cluster.myWorkUnits.size().must(be(0))
       cluster.state.get().must(be(NodeState.Shutdown))
     }
@@ -222,8 +220,8 @@ class BalancingPolicySpec extends Spec {
       )
 
       cluster.zk.get().create(any, any, any, any).returns("")
-      balancer.drainToCount(3, useHandoff = true)
-      Thread.sleep(2100)
+      drainAndWait(balancer, 3, useHandoff = true)
+      verify.exactly(4)(cluster.zk.get()).create(any, any, any, any)
       verify.exactly(4)(cluster.zk.get()).create(any, any, any, any)
       cluster.state.get().must(be(NodeState.Started))
     }
@@ -242,6 +240,15 @@ class BalancingPolicySpec extends Spec {
 
       balancer.getUnclaimed().must(be(Set("three", "four", "seven")))
     }
+  }
+
+  def drainAndWait(balancer:DummyBalancingPolicy,
+                   targetCount: Int, doShutdown: Boolean = false,
+                   useHandoff: Boolean = config.useSoftHandoff): Unit = {
+
+    val latch = new CountDownLatch(1);
+    balancer.drainToCount(targetCount, doShutdown = doShutdown, useHandoff = useHandoff, latch = Some(latch))
+    latch.await(5, TimeUnit.SECONDS)
   }
 
   def makeCluster() : Cluster = {
