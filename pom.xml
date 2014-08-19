@@ -3,7 +3,7 @@
 
     <groupId>com.boundary</groupId>
     <artifactId>ordasity-scala_2.9.1</artifactId>
-    <version>0.5.18</version>
+    <version>0.5.19-SNAPSHOT</version>
     <name>Ordasity</name>
     <url>http://www.boundary.com</url>
     <packaging>jar</packaging>
@@ -232,7 +232,7 @@
 
     <scm>
         <connection>scm:git:git@github.com:boundary/ordasity.git</connection>
-      <tag>ordasity-scala_2.9.1-0.5.18</tag>
+      <tag>HEAD</tag>
   </scm>
 
 </project>
