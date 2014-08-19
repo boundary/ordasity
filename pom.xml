@@ -10,6 +10,7 @@
 
     <properties>
         <scala.version>2.9.1</scala.version>
+        <jackson.version>2.3.3</jackson.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -74,19 +75,19 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.1.4</version>
+            <version>${jackson.version}</version>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.1.4</version>
+            <version>${jackson.version}</version>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.module</groupId>
-            <artifactId>jackson-module-scala</artifactId>
-            <version>2.1.2</version>
+            <artifactId>jackson-module-scala_${scala.version}</artifactId>
+            <version>${jackson.version}</version>
         </dependency>
         
         <dependency>

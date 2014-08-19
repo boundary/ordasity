@@ -16,30 +16,27 @@
 
 package com.boundary.ordasity
 
-import com.yammer.metrics.scala.{Meter, Instrumented}
 import java.lang.management.ManagementFactory
+import java.net.InetSocketAddress
+import java.util.concurrent._
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
+import java.util.{Collections, HashMap, Map}
 import javax.management.ObjectName
 
-import java.util.{Collections, HashMap, Map}
-import scala.collection.JavaConversions._
-import org.cliffc.high_scale_lib.NonBlockingHashSet
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
-
-import java.net.InetSocketAddress
-import org.apache.zookeeper.KeeperException.NoNodeException
-import com.twitter.common.quantity.{Time, Amount}
-import com.twitter.common.zookeeper.{ZooKeeperMap => ZKMap, ZooKeeperClient}
-
-import listeners._
-import balancing.{CountBalancingPolicy, MeteredBalancingPolicy}
-import org.apache.zookeeper.{WatchedEvent, Watcher}
-import org.apache.zookeeper.Watcher.Event.KeeperState
-import java.util.concurrent._
-import overlock.threadpool.NamedThreadFactory
 import com.boundary.logula.Logging
+import com.boundary.ordasity.balancing.{CountBalancingPolicy, MeteredBalancingPolicy}
+import com.boundary.ordasity.listeners._
 import com.fasterxml.jackson.databind.node.ObjectNode
-import scala.Some
-import com.boundary.ordasity.NodeInfo
+import com.twitter.common.quantity.{Amount, Time}
+import com.twitter.common.zookeeper.{ZooKeeperClient, ZooKeeperMap => ZKMap}
+import com.yammer.metrics.scala.{Instrumented, Meter}
+import org.apache.zookeeper.KeeperException.NoNodeException
+import org.apache.zookeeper.Watcher.Event.KeeperState
+import org.apache.zookeeper.{WatchedEvent, Watcher}
+import org.cliffc.high_scale_lib.NonBlockingHashSet
+import overlock.threadpool.NamedThreadFactory
+
+import scala.collection.JavaConversions._
 
 trait ClusterMBean {
   def join() : String
