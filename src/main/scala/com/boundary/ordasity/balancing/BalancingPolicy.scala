@@ -194,7 +194,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
           if (targetCount == 0 && doShutdown)  {
             cluster.completeShutdown()
           }
-          latch.foreach(l => l.countDown());
+          latch.foreach(l => l.countDown())
           return
         } else {
           val workUnit = toHandOff.poll()
