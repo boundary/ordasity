@@ -20,7 +20,7 @@ import collection.JavaConversions._
 import com.boundary.ordasity.{ZKUtils, NodeState, ClusterConfig, Cluster}
 import com.yammer.metrics.scala.Instrumented
 import java.util.{TimerTask, LinkedList}
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{CountDownLatch, TimeUnit}
 import com.boundary.logula.Logging
 
 /**
@@ -161,7 +161,8 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
    * soft handoff if enabled..
    */
   def drainToCount(targetCount: Int, doShutdown: Boolean = false,
-                   useHandoff: Boolean = config.useSoftHandoff) {
+                   useHandoff: Boolean = config.useSoftHandoff,
+                   latch: Option[CountDownLatch] = None) {
     val msg = if (useHandoff) " with handoff" else ""
     log.info("Draining %s%s. Target count: %s, Current: %s",
       config.workUnitName, msg, targetCount, cluster.myWorkUnits.size)
@@ -190,7 +191,10 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
     val handoffTask = new TimerTask {
       def run() {
         if (toHandOff.isEmpty) {
-          if (targetCount == 0 && doShutdown) cluster.completeShutdown()
+          if (targetCount == 0 && doShutdown)  {
+            cluster.completeShutdown()
+          }
+          latch.foreach(l => l.countDown())
           return
         } else {
           val workUnit = toHandOff.poll()
