@@ -56,6 +56,10 @@
                     <groupId>jline</groupId>
                     <artifactId>jline</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>org.apache.zookeeper</groupId>
+                    <artifactId>zookeeper</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 
@@ -67,6 +71,10 @@
                 <exclusion>
                     <groupId>jline</groupId>
                     <artifactId>jline</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.zookeeper</groupId>
+                    <artifactId>zookeeper</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
