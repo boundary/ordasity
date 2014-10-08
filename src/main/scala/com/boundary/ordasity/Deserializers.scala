@@ -17,7 +17,6 @@
 package com.boundary.ordasity
 
 import com.google.common.base.Function
-import com.boundary.logula.Logging
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
@@ -55,7 +54,8 @@ object NodeState extends Enumeration {
 /**
  * Utility method for converting an array of bytes to a NodeInfo object.
  */
-class NodeInfoDeserializer extends Function[Array[Byte], NodeInfo] with Logging {
+class NodeInfoDeserializer extends Function[Array[Byte], NodeInfo] {
+  private[this] val log = LoggerFactory.getLogger(getClass)
   def apply(bytes: Array[Byte]) : NodeInfo = {
     try {
       JsonUtils.OBJECT_MAPPER.readValue(bytes, classOf[NodeInfo])
@@ -64,7 +64,7 @@ class NodeInfoDeserializer extends Function[Array[Byte], NodeInfo] with Logging 
         val data = if (bytes == null) "" else new String(bytes)
         val parsedState = NodeState.valueOf(data).getOrElse(NodeState.Shutdown)
         val info = new NodeInfo(parsedState.toString, 0)
-        log.warn(e, "Saw node data in non-JSON format. Interpreting %s as: %s", data, info)
+        log.warn("Saw node data in non-JSON format. Interpreting %s as: %s".format(data, info), e)
         info
     }
   }
@@ -89,7 +89,7 @@ object JsonUtils {
 }
 
 class ObjectNodeDeserializer extends Function[Array[Byte], ObjectNode] {
-  private[this] val LOGGER = LoggerFactory.getLogger(getClass)
+  private[this] val log = LoggerFactory.getLogger(getClass)
 
   override def apply(input: Array[Byte]): ObjectNode = {
     if (input != null && input.length > 0) {
@@ -97,7 +97,7 @@ class ObjectNodeDeserializer extends Function[Array[Byte], ObjectNode] {
         return JsonUtils.OBJECT_MAPPER.readTree(input).asInstanceOf[ObjectNode]
       } catch {
         case e: Exception =>
-          LOGGER.error("Failed to de-serialize ZNode", e)
+          log.error("Failed to de-serialize ZNode", e)
       }
     }
     JsonUtils.OBJECT_MAPPER.createObjectNode()

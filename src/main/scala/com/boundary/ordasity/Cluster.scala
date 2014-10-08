@@ -21,6 +21,8 @@ import java.lang.management.ManagementFactory
 import javax.management.ObjectName
 
 import java.util.{Collections, HashMap, Map}
+import org.slf4j.LoggerFactory
+
 import scala.collection.JavaConversions._
 import org.cliffc.high_scale_lib.NonBlockingHashSet
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
@@ -36,7 +38,6 @@ import org.apache.zookeeper.{WatchedEvent, Watcher}
 import org.apache.zookeeper.Watcher.Event.KeeperState
 import java.util.concurrent._
 import overlock.threadpool.NamedThreadFactory
-import com.boundary.logula.Logging
 import com.fasterxml.jackson.databind.node.ObjectNode
 import scala.Some
 import com.boundary.ordasity.NodeInfo
@@ -48,7 +49,9 @@ trait ClusterMBean {
 }
 
 class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
-    extends ClusterMBean with Logging with Instrumented {
+    extends ClusterMBean with Instrumented {
+
+  val log = LoggerFactory.getLogger(getClass);
   var myNodeID = config.nodeId
   val watchesRegistered = new AtomicBoolean(false)
   val initialized = new AtomicBoolean(false)
@@ -153,7 +156,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
               log.info("This node is shut down. ZK connection re-established, but not relaunching.")
           } catch {
             case e:Exception =>
-              log.error(e, "Exception during zookeeper connection established callback")
+              log.error("Exception during zookeeper connection established callback", e)
           }
         }
         case KeeperState.Expired =>
@@ -166,7 +169,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
           connected.set(false)
           awaitReconnect()
         case x: Any =>
-          log.info("ZooKeeper session interrupted. Shutting down due to %s", x)
+          log.info("ZooKeeper session interrupted. Shutting down due to %s".format(x))
           connected.set(false)
           awaitReconnect()
       }
@@ -179,8 +182,8 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
           zk.get(Amount.of(1L, Time.SECONDS))
           return
         } catch {
-          case e: TimeoutException => log.warn(e, "Timed out reconnecting to ZooKeeper.")
-          case e: Exception => log.error(e, "Error reconnecting to ZooKeeper")
+          case e: TimeoutException => log.warn("Timed out reconnecting to ZooKeeper.", e)
+          case e: Exception => log.error("Error reconnecting to ZooKeeper", e)
         }
       }
 
@@ -201,7 +204,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       }.toList
 
       claimer.start()
-      log.info("Connecting to hosts: %s", hosts.toString)
+      log.info("Connecting to hosts: %s".format(hosts.toString))
       zk = injectedClient.getOrElse(
         new ZooKeeperClient(Amount.of(config.zkTimeout, Time.MILLISECONDS), hosts))
       log.info("Registering connection watcher.")
@@ -252,7 +255,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     try {
       zk.close()
     } catch {
-      case e: Exception => log.warn(e, "Zookeeper reported exception on shutdown.")
+      case e: Exception => log.warn("Zookeeper reported exception on shutdown.", e)
     }
     listener.onLeave()
   }
@@ -277,7 +280,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       ensureCleanStartup()
     }
 
-    log.info("Connected to Zookeeper (ID: %s).", myNodeID)
+    log.info("Connected to Zookeeper (ID: %s).".format(myNodeID))
     ZKUtils.ensureOrdasityPaths(zk, name, config.workUnitName, config.workUnitShortName)
 
     joinCluster()
@@ -326,7 +329,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
         try {
           rebalance()
         } catch {
-          case e: Exception => log.error(e, "Error running auto-rebalance.")
+          case e: Exception => log.error("Error running auto-rebalance.", e)
         }
       }
     }
@@ -349,7 +352,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
         return
       }
       log.warn("Unable to register with Zookeeper on launch. " +
-        "Is %s already running on this host? Retrying in 1 second...", name)
+        "Is %s already running on this host? Retrying in 1 second...".format(name))
       Thread.sleep(1000)
     }
   }
@@ -409,7 +412,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     * at handoff-requests. This will trigger a claim cycle and adoption.
    */
   def requestHandoff(workUnit: String) {
-    log.info("Requesting handoff for %s.", workUnit)
+    log.info("Requesting handoff for %s.".format(workUnit))
     ZKUtils.createEphemeral(zk, "/" + name + "/handoff-requests/" + workUnit)
   }
 
@@ -429,13 +432,13 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       val claimPath = workUnitClaimPath(workUnit)
       if (!balancingPolicy.isFairGame(workUnit) && !balancingPolicy.isPeggedToMe(workUnit)) {
         log.info("Discovered I'm serving a work unit that's now " +
-          "pegged to someone else. Shutting down %s", workUnit)
+          "pegged to someone else. Shutting down %s".format(workUnit))
         shutdownWork(workUnit)
 
       } else if (workUnitMap.contains(workUnit) && !workUnitMap.get(workUnit).equals(myNodeID) &&
           !claimedForHandoff.contains(workUnit) && !znodeIsMe(claimPath)) {
         log.info("Discovered I'm serving a work unit that's now " +
-          "claimed by %s according to ZooKeeper. Shutting down %s", workUnitMap.get(workUnit), workUnit)
+          "claimed by %s according to ZooKeeper. Shutting down %s".format(workUnitMap.get(workUnit), workUnit))
         shutdownWork(workUnit)
       }
     }
@@ -453,7 +456,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
    * TODO: Refactor to remove check and cast.
    */
   def startWork(workUnit: String, meter: Option[Meter] = None) {
-    log.info("Successfully claimed %s: %s. Starting...", config.workUnitName, workUnit)
+    log.info("Successfully claimed %s: %s. Starting...".format(config.workUnitName, workUnit))
     val added = myWorkUnits.add(workUnit)
 
     if (added) {
@@ -467,7 +470,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
         listener.asInstanceOf[ClusterListener].startWork(workUnit)
       }
     } else {
-      log.warn("Detected that %s is already a member of my work units; not starting twice!", workUnit)
+      log.warn("Detected that %s is already a member of my work units; not starting twice!".format(workUnit))
     }
   }
 
@@ -476,7 +479,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
    * Shuts down a work unit by removing the claim in ZK and calling the listener.
    */
   def shutdownWork(workUnit: String, doLog: Boolean = true) {
-    if (doLog) log.info("Shutting down %s: %s...", config.workUnitName, workUnit)
+    if (doLog) log.info("Shutting down %s: %s...".format(config.workUnitName, workUnit))
     myWorkUnits.remove(workUnit)
     claimedForHandoff.remove(workUnit)
     balancingPolicy.onShutdownWork(workUnit)
@@ -532,7 +535,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       case e: NoNodeException =>
         false
       case e: Exception =>
-        log.error(e, "Encountered unexpected error in checking ZK session status.")
+        log.error("Encountered unexpected error in checking ZK session status.", e)
         false
     }
   }

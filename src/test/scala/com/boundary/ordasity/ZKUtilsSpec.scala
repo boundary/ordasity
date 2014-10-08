@@ -22,10 +22,9 @@ import org.apache.zookeeper.ZooDefs.Ids
 import org.apache.zookeeper.{CreateMode, ZooKeeper}
 import org.apache.zookeeper.KeeperException.NoNodeException
 import com.simple.simplespec.Spec
-import com.boundary.logula.Logging
 import org.apache.zookeeper.data.Stat
 
-class ZKUtilsSpec extends Spec with Logging {
+class ZKUtilsSpec extends Spec {
 
   class `Test ZK Utils` {
 

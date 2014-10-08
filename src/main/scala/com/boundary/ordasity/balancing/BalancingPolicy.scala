@@ -16,12 +16,13 @@
 
 package com.boundary.ordasity.balancing
 
+import org.slf4j.LoggerFactory
+
 import collection.JavaConversions._
 import com.boundary.ordasity.{ZKUtils, NodeState, ClusterConfig, Cluster}
 import com.yammer.metrics.scala.Instrumented
 import java.util.{TimerTask, LinkedList}
 import java.util.concurrent.{CountDownLatch, TimeUnit}
-import com.boundary.logula.Logging
 
 /**
  * A balancing policy determines how a node in an Ordasity cluster should claim /
@@ -29,7 +30,9 @@ import com.boundary.logula.Logging
  * implementations: CountBalancingPolicy and MeteredBalancingPolicy.
  */
 abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
-  extends Instrumented with Logging {
+  extends Instrumented {
+
+  val log = LoggerFactory.getLogger(getClass)
 
   // Implementation required
   def claimWork()
@@ -74,11 +77,11 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
       if (pegged == null) {
         return true
       }
-      log.debug("Pegged status for %s: %s.", workUnit, pegged)
+      log.debug("Pegged status for %s: %s.".format(workUnit, pegged))
       pegged.asText().equals(cluster.myNodeID)
     } catch {
       case e: Exception =>
-        log.error(e, "Error parsing mapping for %s: %s", workUnit, workUnitData)
+        log.error("Error parsing mapping for %s: %s".format(workUnit, workUnitData), e)
         true
     }
   }
@@ -107,7 +110,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
       isPegged
     } catch {
       case e: Exception =>
-        log.error(e, "Error parsing mapping for %s: %s", workUnitId, zkWorkData)
+        log.error("Error parsing mapping for %s: %s".format(workUnitId, zkWorkData), e)
         false
     }
   }
@@ -117,7 +120,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
    * with this node's ID. If the claim succeeds, start work. If not, move on.
    */
   def attemptToClaim(workUnit: String, claimForHandoff: Boolean = false) : Boolean = {
-    log.debug("Attempting to claim %s. For handoff? %s", workUnit, claimForHandoff)
+    log.debug("Attempting to claim %s. For handoff? %s".format(workUnit, claimForHandoff))
 
     val path = {
       if (claimForHandoff) "/%s/handoff-result/%s".format(cluster.name, workUnit)
@@ -150,7 +153,7 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
         cluster.startWork(workUnit)
         return
       }
-      log.warn("Attempting to establish ownership of %s. Retrying in one second...", workUnit)
+      log.warn("Attempting to establish ownership of %s. Retrying in one second...".format(workUnit))
       Thread.sleep(1000)
     }
   }
@@ -164,8 +167,8 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
                    useHandoff: Boolean = config.useSoftHandoff,
                    latch: Option[CountDownLatch] = None) {
     val msg = if (useHandoff) " with handoff" else ""
-    log.info("Draining %s%s. Target count: %s, Current: %s",
-      config.workUnitName, msg, targetCount, cluster.myWorkUnits.size)
+    log.info("Draining %s%s. Target count: %s, Current: %s".format(
+      config.workUnitName, msg, targetCount, cluster.myWorkUnits.size))
 
     if (targetCount >= cluster.myWorkUnits.size) {
       if (!doShutdown)
@@ -177,8 +180,8 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
     val amountToDrain = cluster.myWorkUnits.size - targetCount
 
     val msgPrefix = if (useHandoff) "Requesting handoff for" else "Shutting down"
-    log.info("%s %s of %s %s over %s seconds",
-      msgPrefix, amountToDrain, cluster.myWorkUnits.size, config.workUnitName, config.drainTime)
+    log.info("%s %s of %s %s over %s seconds".format(
+      msgPrefix, amountToDrain, cluster.myWorkUnits.size, config.workUnitName, config.drainTime))
 
     // Build a list of work units to hand off.
     val toHandOff = new LinkedList[String]
@@ -205,8 +208,8 @@ abstract class BalancingPolicy(cluster: Cluster, config: ClusterConfig)
       }
     }
 
-    log.info("Releasing %s / %s work units over %s seconds: %s",
-      amountToDrain, cluster.myWorkUnits.size, config.drainTime, toHandOff.mkString(", "))
+    log.info("Releasing %s / %s work units over %s seconds: %s".format(
+      amountToDrain, cluster.myWorkUnits.size, config.drainTime, toHandOff.mkString(", ")))
 
     if (!cluster.myWorkUnits.isEmpty)
       cluster.pool.get.schedule(handoffTask, 0, TimeUnit.SECONDS)

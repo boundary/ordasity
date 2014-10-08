@@ -20,7 +20,7 @@ import com.boundary.ordasity._
 import java.util.concurrent.TimeUnit
 import com.twitter.common.zookeeper.ZooKeeperMap
 import org.apache.zookeeper.{WatchedEvent, Watcher}
-import com.boundary.logula.Logging
+import org.slf4j.LoggerFactory
 
 /* The HandoffResultsListener keeps track of the handoff state of work units
  * around the cluster. As events fire, this listener determines whether or not
@@ -28,7 +28,9 @@ import com.boundary.logula.Logging
  * managing that lifecycle as appropriate.
  */
 class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
-    extends ZooKeeperMap.Listener[String] with Logging {
+    extends ZooKeeperMap.Listener[String] {
+
+  val log = LoggerFactory.getLogger(getClass)
 
   def nodeChanged(nodeName: String, data: String) = apply(nodeName)
   def nodeRemoved(nodeName: String) = apply(nodeName)
@@ -42,8 +44,8 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
     if (!cluster.initialized.get()) return
 
     if (iRequestedHandoff(workUnit)) {
-      log.info("Handoff of %s to %s completed. Shutting down %s in %s seconds.", workUnit,
-        cluster.getOrElse(cluster.handoffResults, workUnit, "(None)"), workUnit, config.handoffShutdownDelay)
+      log.info("Handoff of %s to %s completed. Shutting down %s in %s seconds.".format(workUnit,
+        cluster.getOrElse(cluster.handoffResults, workUnit, "(None)"), workUnit, config.handoffShutdownDelay))
       ZKUtils.delete(cluster.zk, "/%s/handoff-requests/%s".format(cluster.name, workUnit))
       cluster.pool.get.schedule(shutdownAfterHandoff(workUnit), config.handoffShutdownDelay, TimeUnit.SECONDS)
     }
@@ -68,8 +70,8 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
   def shutdownAfterHandoff(workUnit: String) : Runnable = {
     new Runnable {
       def run() {
-        log.info("Shutting down %s following handoff to %s.",
-          workUnit, cluster.getOrElse(cluster.handoffResults, workUnit, "(None)"))
+        log.info("Shutting down %s following handoff to %s.".format(
+          workUnit, cluster.getOrElse(cluster.handoffResults, workUnit, "(None)")))
         cluster.shutdownWork(workUnit, doLog = false)
 
         if (cluster.myWorkUnits.size() == 0 && cluster.state.get() == NodeState.Draining)
@@ -84,22 +86,22 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
    * repeats execution of the task every two seconds until it is complete.
    */
   def finishHandoff(workUnit: String) {
-    log.info("Handoff of %s to me acknowledged. Deleting claim ZNode for %s and waiting for %s to " +
-      "shutdown work.", workUnit, workUnit, cluster.getOrElse(cluster.workUnitMap, workUnit, "(None)"))
+    log.info("Handoff of %s to me acknowledged. Deleting claim ZNode for %s and waiting for %s to shutdown work."
+      format(workUnit, workUnit, cluster.getOrElse(cluster.workUnitMap, workUnit, "(None)")))
 
     val path = cluster.workUnitClaimPath(workUnit)
     val completeHandoff = () => {
       try {
-        log.info("Completing handoff of %s", workUnit)
+        log.info("Completing handoff of %s".format(workUnit))
         if (ZKUtils.createEphemeral(cluster.zk, path, cluster.myNodeID) || cluster.znodeIsMe(path)) {
-          log.info("Handoff of %s to me complete. Peer has shut down work.", workUnit)
+          log.info("Handoff of %s to me complete. Peer has shut down work.".format(workUnit))
         }
         else {
-          log.warn("Failed to completed handoff of %s - couldn't create ephemeral node", workUnit)
+          log.warn("Failed to completed handoff of %s - couldn't create ephemeral node".format(workUnit))
         }
       } catch {
         case e: Exception =>
-          log.error(e, "Error completing handoff of %s to me.", workUnit)
+          log.error("Error completing handoff of %s to me."format(workUnit), e)
       } finally {
         ZKUtils.delete(cluster.zk, "/" + cluster.name + "/handoff-result/" + workUnit)
         cluster.claimedForHandoff.remove(workUnit)
@@ -114,7 +116,7 @@ class HandoffResultsListener(cluster: Cluster, config: ClusterConfig)
     })
     // Unlikely that peer will have already deleted znode, but handle it regardless
     if (stat.isEmpty) {
-      log.warn("Peer already deleted znode of %s", workUnit)
+      log.warn("Peer already deleted znode of %s".format(workUnit))
       completeHandoff()
     }
   }

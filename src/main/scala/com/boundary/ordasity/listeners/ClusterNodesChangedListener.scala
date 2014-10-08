@@ -16,10 +16,11 @@
 
 package com.boundary.ordasity.listeners
 
+import org.slf4j.LoggerFactory
+
 import collection.JavaConversions._
 import com.boundary.ordasity.{Cluster, NodeInfo}
 import com.twitter.common.zookeeper.ZooKeeperMap
-import com.boundary.logula.Logging
 
 /**
  * As the nodes in an Ordasity cluster come, go, or change state, we must update
@@ -27,8 +28,9 @@ import com.boundary.logula.Logging
  * integrity of existing mappings as appropriate.
  */
 class ClusterNodesChangedListener(cluster: Cluster)
-    extends ZooKeeperMap.Listener[NodeInfo] with Logging {
+    extends ZooKeeperMap.Listener[NodeInfo] {
 
+  val log = LoggerFactory.getLogger(getClass)
   def nodeChanged(nodeName: String, data: NodeInfo) {
     if (!cluster.initialized.get()) return
 
@@ -39,7 +41,7 @@ class ClusterNodesChangedListener(cluster: Cluster)
 
   def nodeRemoved(nodeName: String) {
     if (!cluster.initialized.get()) return
-    log.info("%s has left the cluster.", nodeName)
+    log.info("%s has left the cluster.".format(nodeName))
     cluster.claimer.requestClaim()
     cluster.verifyIntegrity()
   }
