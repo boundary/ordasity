@@ -183,7 +183,7 @@ If you're using **count-based distribution**, it looks like this:
       val target = fairShare()
 
       if (myWorkUnits.size > target) {
-        log.info("Simple Rebalance triggered. Load: %s. Target: %s.",  myWorkUnits.size, target)
+        log.info("Simple Rebalance triggered. Load: %s. Target: %s.format(myWorkUnits.size, target))
         drainToCount(target)
       }
     }
@@ -196,7 +196,7 @@ If you're using **load-based distribution**, it looks like this:
       val target = evenDistribution()
 
       if (myLoad() > target) {
-        log.info("Smart Rebalance triggered. Load: %s. Target: %s", myLoad(), target)
+        log.info("Smart Rebalance triggered. Load: %s. Target: %s".format(myLoad(), target))
         drainToLoad(target.longValue)
       }
     }

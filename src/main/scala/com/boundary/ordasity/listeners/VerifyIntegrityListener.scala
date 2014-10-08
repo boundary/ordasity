@@ -16,10 +16,11 @@
 
 package com.boundary.ordasity.listeners
 
+import org.slf4j.LoggerFactory
+
 import collection.JavaConversions._
 import com.twitter.common.zookeeper.ZooKeeperMap
 import com.boundary.ordasity.{ClusterConfig, Cluster}
-import com.boundary.logula.Logging
 
 /**
  * As work units distributed about the cluster change, we must verify the
@@ -27,7 +28,9 @@ import com.boundary.logula.Logging
  * to claim work if the topology of nodes and work units in the cluster has changed.
  */
 class VerifyIntegrityListener[T](cluster: Cluster, config: ClusterConfig)
-    extends ZooKeeperMap.Listener[T] with Logging {
+    extends ZooKeeperMap.Listener[T] {
+
+  val log = LoggerFactory.getLogger(getClass);
 
   def nodeChanged(nodeName: String, data: T) {
     if (!cluster.initialized.get()) return

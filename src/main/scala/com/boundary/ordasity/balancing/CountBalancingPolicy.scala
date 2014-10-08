@@ -40,17 +40,17 @@ class CountBalancingPolicy(cluster: Cluster, config: ClusterConfig) extends Bala
     cluster.allWorkUnits.synchronized {
       val maxToClaim = getMaxToClaim(nodeCount)
 
-      log.debug("%s Nodes: %s. %s: %s.", cluster.name, nodeCount, config.workUnitName.capitalize, cluster.allWorkUnits.size)
-      log.debug("Claiming %s pegged to me, and up to %s more.", config.workUnitName, maxToClaim)
+      log.debug("%s Nodes: %s. %s: %s.".format(cluster.name, nodeCount, config.workUnitName.capitalize, cluster.allWorkUnits.size))
+      log.debug("Claiming %s pegged to me, and up to %s more.".format(config.workUnitName, maxToClaim))
 
       val unclaimed = getUnclaimed()
-      log.debug("Handoff requests: %s, Handoff Results: %s, Unclaimed: %s",
-        cluster.handoffRequests.mkString(", "), cluster.handoffResults.mkString(", "), unclaimed.mkString(", "))
+      log.debug("Handoff requests: %s, Handoff Results: %s, Unclaimed: %s".format(
+        cluster.handoffRequests.mkString(", "), cluster.handoffResults.mkString(", "), unclaimed.mkString(", ")))
 
       for (workUnit <- unclaimed) {
         if ((isFairGame(workUnit) && claimed < maxToClaim) || isPeggedToMe(workUnit)) {
           if (config.useSoftHandoff && cluster.handoffRequests.contains(workUnit) && attemptToClaim(workUnit, true)) {
-            log.info("Accepted handoff of %s.", workUnit)
+            log.info("Accepted handoff of %s.".format(workUnit))
             cluster.handoffResultsListener.finishHandoff(workUnit)
             claimed += 1
           } else if (!cluster.handoffRequests.contains(workUnit) && attemptToClaim(workUnit)) {
@@ -77,7 +77,7 @@ class CountBalancingPolicy(cluster: Cluster, config: ClusterConfig) extends Bala
     val target = fairShare()
 
     if (cluster.myWorkUnits.size > target) {
-      log.info("Simple Rebalance triggered. My Share: %s. Target: %s.", cluster.myWorkUnits.size, target)
+      log.info("Simple Rebalance triggered. My Share: %s. Target: %s.".format(cluster.myWorkUnits.size, target))
       super.drainToCount(target)
     }
   }

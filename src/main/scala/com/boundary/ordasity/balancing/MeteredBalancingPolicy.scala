@@ -64,7 +64,7 @@ class MeteredBalancingPolicy(cluster: Cluster, config: ClusterConfig)
 
         if (config.useSoftHandoff && cluster.handoffRequests.contains(workUnit)
             && isFairGame(workUnit) && attemptToClaim(workUnit, claimForHandoff = true)) {
-              log.info("Accepted handoff for %s.", workUnit)
+              log.info("Accepted handoff for %s.".format(workUnit))
               cluster.handoffResultsListener.finishHandoff(workUnit)
             }
 
@@ -81,7 +81,7 @@ class MeteredBalancingPolicy(cluster: Cluster, config: ClusterConfig)
   def rebalance() {
     val target = evenDistribution()
     if (myLoad() > target) {
-      log.info("Smart Rebalance triggered. Load: %s. Target: %s", myLoad(), target)
+      log.info("Smart Rebalance triggered. Load: %s. Target: %s".format(myLoad(), target))
       drainToLoad(target.longValue)
     }
   }
@@ -126,9 +126,9 @@ class MeteredBalancingPolicy(cluster: Cluster, config: ClusterConfig)
           val myInfoEncoded = JsonUtils.OBJECT_MAPPER.writeValueAsString(myInfo)
           ZKUtils.setOrCreate(cluster.zk, nodeLoadPath, myInfoEncoded, CreateMode.EPHEMERAL)
 
-          log.info("My load: %s", myLoad())          
+          log.info("My load: %s".format(myLoad()))
         } catch {
-          case e: Exception => log.error(e, "Error reporting load info to ZooKeeper.")
+          case e: Exception => log.error("Error reporting load info to ZooKeeper.", e)
         }
       }
     }
@@ -163,8 +163,8 @@ class MeteredBalancingPolicy(cluster: Cluster, config: ClusterConfig)
     val drainTask = buildDrainTask(drainList, drainInterval, useHandoff, currentLoad)
 
     if (!drainList.isEmpty) {
-      log.info("Releasing work units over %s seconds. Current load: %s. Target: %s. " +
-        "Releasing: %s", time, startingLoad, targetLoad, drainList.mkString(", "))
+      log.info("Releasing work units over %s seconds. Current load: %s. Target: %s. Releasing: %s"
+        .format(time, startingLoad, targetLoad, drainList.mkString(", ")))
       cluster.pool.get.schedule(drainTask, 0, TimeUnit.SECONDS)
     }
   }
@@ -175,7 +175,7 @@ class MeteredBalancingPolicy(cluster: Cluster, config: ClusterConfig)
       def run() {
         if (drainList.isEmpty || myLoad <= evenDistribution) {
           log.info("Finished the drain list, or my load is now less than an even distribution. " +
-            "Stopping rebalance. Remaining work units: %s", drainList.mkString(", "))
+            "Stopping rebalance. Remaining work units: %s".format(drainList.mkString(", ")))
           return
         }
         else if (useHandoff)

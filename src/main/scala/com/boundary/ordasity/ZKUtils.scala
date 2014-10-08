@@ -22,9 +22,11 @@ import org.apache.zookeeper.ZooDefs.Ids
 import org.apache.zookeeper.KeeperException.{NoNodeException, NodeExistsException}
 import org.apache.zookeeper.{Watcher, CreateMode}
 import org.apache.zookeeper.data.Stat
-import com.boundary.logula.Logging
+import org.slf4j.LoggerFactory
 
-object ZKUtils extends Logging {
+object ZKUtils {
+
+  val log = LoggerFactory.getLogger(getClass)
 
   def ensureOrdasityPaths(zk: ZooKeeperClient, name: String,  unit: String, unitShort: String) {
     val acl = Ids.OPEN_ACL_UNSAFE
@@ -56,10 +58,10 @@ object ZKUtils extends Logging {
       true
     } catch {
       case e: NoNodeException =>
-        log.warn("No ZNode to delete for %s", path)
+        log.warn("No ZNode to delete for %s".format(path))
         false
       case e: Exception =>
-        log.error(e, "Unexpected error deleting ZK node %s", path)
+        log.error("Unexpected error deleting ZK node %s".format(path), e)
         false
     }
   }
@@ -84,7 +86,7 @@ object ZKUtils extends Logging {
       true
     } catch {
       case e: Exception =>
-        log.error(e, "Failed to delete path %s with expected value %s", path, expectedValue)
+        log.error("Failed to delete path %s with expected value %s".format(path, expectedValue), e)
         false
     }
   }
@@ -95,7 +97,7 @@ object ZKUtils extends Logging {
       true
     } catch {
       case e: Exception =>
-        log.error(e, "Error setting %s to %s.", path, data)
+        log.error("Error setting %s to %s.".format(path, data), e)
         false
     }
   }
@@ -123,7 +125,7 @@ object ZKUtils extends Logging {
       case e: NoNodeException =>
         null
       case e: Exception =>
-        log.error(e, "Error getting data for ZNode at path %s", path)
+        log.error("Error getting data for ZNode at path %s".format(path), e)
         null
     }
   }
@@ -135,7 +137,7 @@ object ZKUtils extends Logging {
       case e: InterruptedException =>
         throw e
       case e: Exception =>
-        log.error(e, "Failed to get stat for ZNode at path %s", path)
+        log.error("Failed to get stat for ZNode at path %s".format(path))
         None
     }
   }
