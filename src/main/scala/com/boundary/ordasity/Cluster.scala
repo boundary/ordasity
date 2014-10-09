@@ -51,7 +51,7 @@ trait ClusterMBean {
 class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     extends ClusterMBean with Instrumented {
 
-  val log = LoggerFactory.getLogger(getClass);
+  val log = LoggerFactory.getLogger(getClass)
   var myNodeID = config.nodeId
   val watchesRegistered = new AtomicBoolean(false)
   val initialized = new AtomicBoolean(false)

@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory
  */
 class Claimer(cluster: Cluster, name: String = "ordasity-claimer") extends Thread(name) {
 
-  val log = LoggerFactory.getLogger(getClass);
+  val log = LoggerFactory.getLogger(getClass)
   private val claimQueue : BlockingQueue[ClaimToken] = new TokenQueue
   def requestClaim() : Boolean = claimQueue.offer(ClaimToken.token)
 

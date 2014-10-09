@@ -30,7 +30,7 @@ import com.boundary.ordasity.{ClusterConfig, Cluster}
 class VerifyIntegrityListener[T](cluster: Cluster, config: ClusterConfig)
     extends ZooKeeperMap.Listener[T] {
 
-  val log = LoggerFactory.getLogger(getClass);
+  val log = LoggerFactory.getLogger(getClass)
 
   def nodeChanged(nodeName: String, data: T) {
     if (!cluster.initialized.get()) return
