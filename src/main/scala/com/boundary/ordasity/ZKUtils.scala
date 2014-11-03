@@ -28,13 +28,13 @@ object ZKUtils {
 
   val log = LoggerFactory.getLogger(getClass)
 
-  def ensureOrdasityPaths(zk: ZooKeeperClient, name: String,  unit: String, unitShort: String) {
+  def ensureOrdasityPaths(zk: ZooKeeperClient, name: String,  config: ClusterConfig) {
     val acl = Ids.OPEN_ACL_UNSAFE
     ZooKeeperUtils.ensurePath(zk, acl, "/%s/nodes".format(name))
-    ZooKeeperUtils.ensurePath(zk, acl, "/%s".format(unit))
+    ZooKeeperUtils.ensurePath(zk, acl, "%s/%s".format(config.workUnitZkChRoot.getOrElse(""), config.workUnitName))
     ZooKeeperUtils.ensurePath(zk, acl, "/%s/meta/rebalance".format(name))
     ZooKeeperUtils.ensurePath(zk, acl, "/%s/meta/workload".format(name))
-    ZooKeeperUtils.ensurePath(zk, acl, "/%s/claimed-%s".format(name, unitShort))
+    ZooKeeperUtils.ensurePath(zk, acl, "/%s/claimed-%s".format(name, config.workUnitShortName))
     ZooKeeperUtils.ensurePath(zk, acl, "/%s/handoff-requests".format(name))
     ZooKeeperUtils.ensurePath(zk, acl, "/%s/handoff-result".format(name))
   }

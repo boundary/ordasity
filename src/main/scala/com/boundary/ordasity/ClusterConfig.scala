@@ -28,6 +28,7 @@ class ClusterConfig {
   @BeanProperty var drainTime = 60
   @BeanProperty var useSmartBalancing = false
   @BeanProperty var zkTimeout = 3000
+  @BeanProperty var workUnitZkChRoot: Option[String] = None
   @BeanProperty var workUnitName = "work-units"
   @BeanProperty var workUnitShortName = "work"
   @BeanProperty var nodeId = InetAddress.getLocalHost.getHostName
@@ -43,6 +44,11 @@ object ClusterConfig {
 class ClusterConfigBuilder(config: ClusterConfig) {
   def setHosts(hosts: String) : ClusterConfigBuilder = {
     config.hosts = hosts
+    this
+  }
+
+  def setWorkUnitZkChRoot(root: Option[String]): ClusterConfigBuilder ={
+    config.workUnitZkChRoot = root
     this
   }
 
