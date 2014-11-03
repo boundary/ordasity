@@ -33,23 +33,32 @@ class ZKUtilsSpec extends Spec {
       val clusterName = "foo"
       val unitName = "organizations"
       val unitShortName = "orgs"
+      val roots : List[Option[String]] = List(None, Some("/root"))
 
-      ZKUtils.ensureOrdasityPaths(mockZKClient, clusterName, unitName, unitShortName)
+      for (root <- roots) {
+        val config = ClusterConfig.builder()
+          .setWorkUnitName(unitName)
+          .setWorkUnitShortName(unitShortName)
+          .setWorkUnitZkChRoot(root)
+          .build()
 
-      val paths = List(
-        "/%s".format(clusterName),
-        "/%s/nodes".format(clusterName),
-        "/%s".format(unitName),
-        "/%s/meta/rebalance".format(clusterName),
-        "/%s/claimed-%s".format(clusterName, unitShortName),
-        "/%s/handoff-requests".format(clusterName),
-        "/%s/handoff-result".format(clusterName)
-      )
+        ZKUtils.ensureOrdasityPaths(mockZKClient, clusterName, config)
 
-      paths.foreach(path =>
-        verify.atLeastOne(mockZK).create(path, null,
-          Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT)
-      )
+        val paths = List(
+          "/%s".format(clusterName),
+          "/%s/nodes".format(clusterName),
+          "%s/%s".format(root.getOrElse(""), unitName),
+          "/%s/meta/rebalance".format(clusterName),
+          "/%s/claimed-%s".format(clusterName, unitShortName),
+          "/%s/handoff-requests".format(clusterName),
+          "/%s/handoff-result".format(clusterName)
+        )
+
+        paths.foreach(path =>
+          verify.atLeastOne(mockZK).create(path, null,
+            Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT)
+        )
+      }
     }
 
     @Test def `test create ephemeral node` {
