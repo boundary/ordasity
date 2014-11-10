@@ -33,7 +33,7 @@ class ZKUtilsSpec extends Spec {
       val clusterName = "foo"
       val unitName = "organizations"
       val unitShortName = "orgs"
-      val roots : List[Option[String]] = List(None, Some("/root"))
+      val roots : List[String] = List("", "/ROOT")
 
       for (root <- roots) {
         val config = ClusterConfig.builder()
@@ -47,7 +47,7 @@ class ZKUtilsSpec extends Spec {
         val paths = List(
           "/%s".format(clusterName),
           "/%s/nodes".format(clusterName),
-          "%s/%s".format(root.getOrElse(""), unitName),
+          "%s/%s".format(root, unitName),
           "/%s/meta/rebalance".format(clusterName),
           "/%s/claimed-%s".format(clusterName, unitShortName),
           "/%s/handoff-requests".format(clusterName),

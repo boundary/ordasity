@@ -373,7 +373,7 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
     nodes = ZKMap.create(zk, "/%s/nodes".format(name),
       new NodeInfoDeserializer(), nodesChangedListener)
 
-    allWorkUnits = ZKMap.create(zk, "%s/%s".format(config.workUnitZkChRoot.getOrElse(""), config.workUnitName),
+    allWorkUnits = ZKMap.create(zk, "%s/%s".format(config.workUnitZkChRoot, config.workUnitName),
       new ObjectNodeDeserializer, new VerifyIntegrityListener[ObjectNode](this, config))
 
     workUnitMap = ZKMap.create(zk, "/%s/claimed-%s".format(name, config.workUnitShortName),

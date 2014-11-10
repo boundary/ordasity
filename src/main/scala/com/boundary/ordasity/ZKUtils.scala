@@ -31,7 +31,7 @@ object ZKUtils {
   def ensureOrdasityPaths(zk: ZooKeeperClient, name: String,  config: ClusterConfig) {
     val acl = Ids.OPEN_ACL_UNSAFE
     ZooKeeperUtils.ensurePath(zk, acl, "/%s/nodes".format(name))
-    ZooKeeperUtils.ensurePath(zk, acl, "%s/%s".format(config.workUnitZkChRoot.getOrElse(""), config.workUnitName))
+    ZooKeeperUtils.ensurePath(zk, acl, "%s/%s".format(config.workUnitZkChRoot, config.workUnitName))
     ZooKeeperUtils.ensurePath(zk, acl, "/%s/meta/rebalance".format(name))
     ZooKeeperUtils.ensurePath(zk, acl, "/%s/meta/workload".format(name))
     ZooKeeperUtils.ensurePath(zk, acl, "/%s/claimed-%s".format(name, config.workUnitShortName))
