@@ -22,6 +22,7 @@ import javax.management.ObjectName
 
 import java.util.{Collections, HashMap, Map}
 import org.slf4j.LoggerFactory
+import org.apache.zookeeper.data.Stat
 
 import scala.collection.JavaConversions._
 import org.cliffc.high_scale_lib.NonBlockingHashSet
@@ -350,6 +351,16 @@ class Cluster(val name: String, val listener: Listener, config: ClusterConfig)
       val encoded = JsonUtils.OBJECT_MAPPER.writeValueAsString(myInfo)
       if (ZKUtils.createEphemeral(zk, "/" + name + "/nodes/" + myNodeID, encoded)) {
         return
+      } else {
+        val stat = new Stat()
+        val bytes = zk.get().getData("/" + name + "/nodes/" + myNodeID, false, stat)
+        val nodeInfo = JsonUtils.OBJECT_MAPPER.readValue(bytes, classOf[NodeInfo])
+        if (nodeInfo.connectionID == zk.get().getSessionId) {
+          return
+        }
+        log.warn("Unable to register with Zookeeper on launch. " +
+          "Is %s already running on this host? Retrying in 1 second...", name)
+        Thread.sleep(1000)
       }
       log.warn("Unable to register with Zookeeper on launch. " +
         "Is %s already running on this host? Retrying in 1 second...".format(name))
